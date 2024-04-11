@@ -1,11 +1,10 @@
 use crate::apt;
 use crate::args;
-use crate::db;
-use crate::db::{Task, TaskData};
+use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use tokio::fs;
 
-pub async fn run(args: &args::Import) -> Result<()> {
+pub async fn run(args: &args::SyncApt) -> Result<()> {
     let db = db::Client::create().await?;
 
     let buf = fs::read(&args.file).await?;

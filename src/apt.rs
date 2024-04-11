@@ -9,7 +9,7 @@ pub struct SourcesIndex {
 
 impl SourcesIndex {
     pub fn parse(bytes: &[u8]) -> Result<Self> {
-        let sources = str::from_utf8(&bytes)?;
+        let sources = str::from_utf8(bytes)?;
 
         let mut pkgs = Vec::new();
 

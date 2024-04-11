@@ -43,7 +43,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(reader: R) -> Result<(Hasher<R>, 
                         break;
                     }
                     let buf = &buf[..n];
-                    sha256.update(&buf);
+                    sha256.update(buf);
                 }
                 let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
                 Some(digest)
@@ -76,10 +76,10 @@ pub async fn run(_args: &args::Ingest) -> Result<()> {
     let (hasher, files) = stream_data(io::stdin()).await?;
 
     let (_, digests) = hasher.digests();
-    let digest = digests.sha256;
-    println!("digest={digest}");
+    println!("digests={digests:?}");
 
-    db.insert_artifact(&digest, &files).await?;
+    db.insert_artifact(&digests.sha256, &files).await?;
+    db.register_chksums_aliases(&digests, &digests.sha256).await?;
 
     Ok(())
 }

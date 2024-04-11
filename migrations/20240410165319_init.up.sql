@@ -16,7 +16,6 @@ CREATE TABLE aliases (
 );
 CREATE INDEX aliases_idx_to ON aliases (alias_to);
 CREATE INDEX aliases_idx_from ON aliases (alias_from);
-CREATE UNIQUE INDEX aliases_idx_uniq ON aliases (alias_to);
 
 CREATE TABLE refs (
     id bigserial PRIMARY KEY,

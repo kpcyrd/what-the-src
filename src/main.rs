@@ -2,6 +2,7 @@ pub mod alias;
 pub mod apt;
 pub mod args;
 pub mod chksums;
+pub mod compression;
 pub mod daemon;
 pub mod db;
 pub mod errors;
@@ -9,7 +10,7 @@ pub mod import;
 pub mod ingest;
 pub mod worker;
 
-use crate::args::{Args, SubCommand};
+use crate::args::{Args, Plumbing, SubCommand};
 use crate::errors::*;
 use clap::Parser;
 use env_logger::Env;
@@ -28,9 +29,10 @@ async fn main() -> Result<()> {
 
     match args.subcommand {
         SubCommand::Daemon(args) => daemon::run(&args).await,
-        SubCommand::Ingest(args) => ingest::run(&args).await,
-        SubCommand::Import(args) => import::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
-        SubCommand::Alias(args) => alias::run(&args).await,
+        SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncApt(args)) => import::run(&args).await,
+        SubCommand::Plumbing(Plumbing::Decompress(args)) => compression::run(&args).await,
+        SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
     }
 }

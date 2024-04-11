@@ -1,6 +1,7 @@
 use crate::errors::*;
 use crate::ingest;
 use futures::TryStreamExt;
+use crate::chksums::Checksums;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
 use sqlx::Pool;
@@ -64,6 +65,18 @@ impl Client {
         .bind(alias_to)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    pub async fn register_chksums_aliases(
+        &self,
+        outer: &Checksums,
+        canonical: &str,
+    ) -> Result<()> {
+        if outer.sha256 != canonical {
+            self.insert_alias_from_to(&outer.sha256, canonical).await?;
+        }
+        self.insert_alias_from_to(&outer.sha512, canonical).await?;
         Ok(())
     }
 

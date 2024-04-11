@@ -15,10 +15,9 @@ pub struct Args {
 #[derive(Debug, Subcommand)]
 pub enum SubCommand {
     Daemon(Daemon),
-    Ingest(Ingest),
-    Import(Import),
     Worker(Worker),
-    Alias(Alias),
+    #[command(subcommand)]
+    Plumbing(Plumbing),
 }
 
 /// Run the web server daemon
@@ -28,27 +27,40 @@ pub struct Daemon {
     pub bind_addr: SocketAddr,
 }
 
+/// Run worker for background jobs
+#[derive(Debug, Parser)]
+pub struct Worker {}
+
+#[derive(Debug, Subcommand)]
+pub enum Plumbing {
+    Ingest(Ingest),
+    SyncApt(SyncApt),
+    Decompress(Decompress),
+    AddRef(AddRef),
+}
+
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
 pub struct Ingest {}
 
 /// Start an import of a software vendor
 #[derive(Debug, Parser)]
-pub struct Import {
+pub struct SyncApt {
     #[arg(long)]
     pub vendor: String,
     pub file: PathBuf,
 }
 
-/// Run worker for background jobs
+/// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
-pub struct Worker {}
+pub struct Decompress {
+    #[arg(short, long)]
+    pub compression: Option<String>,
+}
 
 /// This command should merge into Ingest eventually
 #[derive(Debug, Parser)]
-pub struct Alias {
-    #[arg(short, long)]
-    pub compression: Option<String>,
+pub struct AddRef {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]

@@ -41,7 +41,7 @@ async fn artifact(
     let alias = db.get_artifact_alias(&chksum).await?;
 
     let resolved_chksum = alias.as_ref().map(|a| &a.alias_to).unwrap_or(&chksum);
-    let Some(artifact) = db.get_artifact(&resolved_chksum).await? else {
+    let Some(artifact) = db.get_artifact(resolved_chksum).await? else {
         return Err(reject::not_found());
     };
 

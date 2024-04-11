@@ -1,7 +1,6 @@
-use crate::alias;
 use crate::args;
-use crate::db;
-use crate::db::{Task, TaskData};
+use crate::compression;
+use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
 use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
@@ -42,16 +41,12 @@ pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
             let (_, digests) = hasher.digests();
             println!("digest={:?}", digests.sha256);
             db.insert_artifact(&digests.sha256, &files).await?;
+            db.register_chksums_aliases(&digests, &digests.sha256).await?;
 
             // TODO: do this on the fly together with the other thing
-            let (inner_digest, outer_digest) = alias::stream_data(&body[..], compression).await?;
-            let inner_digest = inner_digest.sha256;
-            let outer_digest = outer_digest.sha256;
-
-            if inner_digest != outer_digest {
-                db.insert_alias_from_to(&outer_digest, &inner_digest)
-                    .await?;
-            }
+            let (inner_digests, outer_digests) =
+                compression::stream_data(&body[..], compression).await?;
+            db.register_chksums_aliases(&outer_digests, &inner_digests.sha256).await?;
         }
     }
 
