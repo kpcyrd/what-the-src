@@ -16,6 +16,8 @@ pub enum Error {
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),
+    #[error(transparent)]
+    Reqwest(#[from] reqwest::Error),
 }
 
 // TODO: consider fixing this

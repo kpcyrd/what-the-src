@@ -1,9 +1,11 @@
 use crate::errors::*;
+use crate::ingest;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
 use sqlx::Pool;
 use std::borrow::Cow;
+use std::env;
 
 // keep track if we may need to reprocess an entry
 const DB_VERSION: i16 = 0;
@@ -15,9 +17,11 @@ pub struct Client {
 
 impl Client {
     pub async fn create() -> Result<Self> {
+        let database_url = env::var("DATABASE_URL").unwrap();
+
         let pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect("postgres://postgres:postgres@localhost/what-the-src")
+            .connect(&database_url)
             .await?;
 
         // sqlx currently does not support just putting `migrations` here
@@ -26,7 +30,8 @@ impl Client {
         Ok(Client { pool })
     }
 
-    pub async fn insert_artifact(&self, chksum: &str, files: &serde_json::Value) -> Result<()> {
+    pub async fn insert_artifact(&self, chksum: &str, files: &[ingest::Entry]) -> Result<()> {
+        let files = serde_json::to_value(files)?;
         let _result = sqlx::query(
             "INSERT INTO artifacts (db_version, chksum, files)
             VALUES ($1, $2, $3)
@@ -137,6 +142,29 @@ impl Client {
         )
         .bind(&task.key)
         .bind(&task.data)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_random_task(&self) -> Result<Option<Task>> {
+        let result = sqlx::query_as(
+            "SELECT *
+                FROM tasks
+                ORDER BY RANDOM()
+                LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
+    pub async fn delete_task(&self, task: &Task) -> Result<()> {
+        let _result = sqlx::query(
+            "DELETE FROM tasks
+            WHERE key = $1",
+        )
+        .bind(&task.key)
         .execute(&self.pool)
         .await?;
         Ok(())

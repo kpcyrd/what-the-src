@@ -7,6 +7,7 @@ pub mod db;
 pub mod errors;
 pub mod import;
 pub mod ingest;
+pub mod worker;
 
 use crate::args::{Args, SubCommand};
 use crate::errors::*;
@@ -23,10 +24,13 @@ async fn main() -> Result<()> {
     };
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
 
+    dotenvy::dotenv().ok();
+
     match args.subcommand {
         SubCommand::Daemon(args) => daemon::run(&args).await,
         SubCommand::Ingest(args) => ingest::run(&args).await,
         SubCommand::Import(args) => import::run(&args).await,
+        SubCommand::Worker(args) => worker::run(&args).await,
         SubCommand::Alias(args) => alias::run(&args).await,
     }
 }

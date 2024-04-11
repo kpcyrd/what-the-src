@@ -2,9 +2,17 @@
 services:
   daemon:
     build: .
+    init: true
     ports:
     - 127.0.0.1:8000:8000
     command: ["daemon"]
+    environment:
+    - DATABASE_URL=postgres://postgres:postgres@db/what-the-src
+
+  worker:
+    build: .
+    init: true
+    command: ["worker"]
     environment:
     - DATABASE_URL=postgres://postgres:postgres@db/what-the-src
 

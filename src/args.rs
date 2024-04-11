@@ -17,6 +17,7 @@ pub enum SubCommand {
     Daemon(Daemon),
     Ingest(Ingest),
     Import(Import),
+    Worker(Worker),
     Alias(Alias),
 }
 
@@ -38,6 +39,10 @@ pub struct Import {
     pub vendor: String,
     pub file: PathBuf,
 }
+
+/// Run worker for background jobs
+#[derive(Debug, Parser)]
+pub struct Worker {}
 
 /// This command should merge into Ingest eventually
 #[derive(Debug, Parser)]

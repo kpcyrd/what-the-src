@@ -7,8 +7,7 @@ use futures::stream::StreamExt;
 use serde::Serialize;
 use sha2::Sha256;
 use std::path::PathBuf;
-use tokio::io;
-use tokio::io::AsyncReadExt;
+use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
 
 #[derive(Debug, Serialize)]
@@ -17,10 +16,8 @@ pub struct Entry {
     digest: Option<String>,
 }
 
-pub async fn run(_args: &args::Ingest) -> Result<()> {
-    let db = db::Client::create().await?;
-
-    let mut tar = Archive::new(Hasher::new(io::stdin()));
+pub async fn stream_data<R: AsyncRead + Unpin>(reader: R) -> Result<(Hasher<R>, Vec<Entry>)> {
+    let mut tar = Archive::new(Hasher::new(reader));
     let mut files = Vec::new();
     {
         let mut entries = tar.entries()?;
@@ -34,7 +31,6 @@ pub async fn run(_args: &args::Ingest) -> Result<()> {
                     _ => false,
                 };
                 let path = header.path()?;
-                println!("header={:?}", header);
                 (PathBuf::from(path), is_file)
             };
 
@@ -56,9 +52,9 @@ pub async fn run(_args: &args::Ingest) -> Result<()> {
             };
 
             if let Some(digest) = &digest {
-                info!("Found entry={path:?}, digest={digest:?}");
+                debug!("Found entry={path:?}, digest={digest:?}");
             } else {
-                info!("Found entry={path:?}");
+                debug!("Found entry={path:?}");
             }
 
             files.push(Entry { path, digest });
@@ -71,11 +67,18 @@ pub async fn run(_args: &args::Ingest) -> Result<()> {
     // consume any remaining data
     io::copy(&mut hasher, &mut io::sink()).await?;
 
+    Ok((hasher, files))
+}
+
+pub async fn run(_args: &args::Ingest) -> Result<()> {
+    let db = db::Client::create().await?;
+
+    let (hasher, files) = stream_data(io::stdin()).await?;
+
     let (_, digests) = hasher.digests();
     let digest = digests.sha256;
     println!("digest={digest}");
 
-    let files = serde_json::to_value(&files)?;
     db.insert_artifact(&digest, &files).await?;
 
     Ok(())
