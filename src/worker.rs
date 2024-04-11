@@ -41,12 +41,14 @@ pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
             let (_, digests) = hasher.digests();
             println!("digest={:?}", digests.sha256);
             db.insert_artifact(&digests.sha256, &files).await?;
-            db.register_chksums_aliases(&digests, &digests.sha256).await?;
+            db.register_chksums_aliases(&digests, &digests.sha256)
+                .await?;
 
             // TODO: do this on the fly together with the other thing
             let (inner_digests, outer_digests) =
                 compression::stream_data(&body[..], compression).await?;
-            db.register_chksums_aliases(&outer_digests, &inner_digests.sha256).await?;
+            db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
+                .await?;
         }
     }
 

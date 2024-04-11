@@ -79,7 +79,8 @@ pub async fn run(_args: &args::Ingest) -> Result<()> {
     println!("digests={digests:?}");
 
     db.insert_artifact(&digests.sha256, &files).await?;
-    db.register_chksums_aliases(&digests, &digests.sha256).await?;
+    db.register_chksums_aliases(&digests, &digests.sha256)
+        .await?;
 
     Ok(())
 }

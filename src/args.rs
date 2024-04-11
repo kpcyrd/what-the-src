@@ -1,6 +1,5 @@
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
-use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -48,7 +47,9 @@ pub struct Ingest {}
 pub struct SyncApt {
     #[arg(long)]
     pub vendor: String,
-    pub file: PathBuf,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
 }
 
 /// Ingest a .tar into the archive

@@ -22,6 +22,7 @@ main h2 {
 .alias {
     background-color: lightblue;
     padding: 5px;
+    word-wrap: break-word;
 }
 
 #files {

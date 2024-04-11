@@ -86,7 +86,8 @@ pub async fn run(args: &args::Decompress) -> Result<()> {
 
     let (inner_digests, outer_digests) =
         stream_data(io::stdin(), args.compression.as_deref()).await?;
-    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256).await?;
+    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
+        .await?;
 
     Ok(())
 }
