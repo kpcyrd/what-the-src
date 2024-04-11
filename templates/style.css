@@ -1,0 +1,35 @@
+body {
+    background-color: grey;
+    font-family: Sans-Serif;
+}
+
+.content {
+    max-width: 900px;
+    margin: 20px auto;
+    padding: 15px;
+    background-color: white;
+}
+
+main h1 {
+    font-size: 20px;
+    font-family: monospace;
+}
+
+main h2 {
+    margin: 5px 0;
+}
+
+.alias {
+    background-color: lightblue;
+    padding: 5px;
+}
+
+#files {
+    overflow-x: scroll;
+}
+
+footer {
+    font-size: x-small;
+    text-align: center;
+    margin-top: 25px;
+}

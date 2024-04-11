@@ -1,0 +1,28 @@
+[package]
+name = "what-the-src"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-compression = { version = "0.4.8", features = ["tokio", "gzip"] }
+clap = { version = "4.5.4", features = ["derive", "env"] }
+digest = "0.10.7"
+env_logger = "0.11.3"
+futures = "0.3.30"
+handlebars = { version = "5.1.2", features = ["rust-embed"] }
+hex = "0.4.3"
+log = "0.4.21"
+rust-embed = "8.3.0"
+serde = { version = "1.0.197", features = ["derive"] }
+serde_json = "1.0.115"
+sha2 = "0.10.8"
+sqlx = { version = "0.7.4", features = ["runtime-tokio"] }
+sqlx-migrate = { version = "0.7.1", features = ["postgres"] }
+thiserror = "1.0.58"
+tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread", "io-std"] }
+tokio-tar = "0.3.1"
+warp = "0.3.7"
+warp-embed = "0.5.0"
