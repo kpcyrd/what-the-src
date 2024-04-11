@@ -68,13 +68,13 @@ pub async fn run(args: &args::Alias) -> Result<()> {
             .await?;
     }
 
-    db.insert_ref(
-        &outer_digest,
-        &args.vendor,
-        &args.package,
-        &args.version,
-        args.filename.as_ref().map(|s| s.as_str()),
-    )
+    db.insert_ref(&db::Ref {
+        chksum: outer_digest.clone(),
+        vendor: args.vendor.clone(),
+        package: args.package.clone(),
+        version: args.version.clone(),
+        filename: args.filename.clone(),
+    })
     .await?;
 
     Ok(())

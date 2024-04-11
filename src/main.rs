@@ -1,9 +1,11 @@
 pub mod alias;
+pub mod apt;
 pub mod args;
 pub mod chksums;
 pub mod daemon;
 pub mod db;
 pub mod errors;
+pub mod import;
 pub mod ingest;
 
 use crate::args::{Args, SubCommand};
@@ -24,6 +26,7 @@ async fn main() -> Result<()> {
     match args.subcommand {
         SubCommand::Daemon(args) => daemon::run(&args).await,
         SubCommand::Ingest(args) => ingest::run(&args).await,
+        SubCommand::Import(args) => import::run(&args).await,
         SubCommand::Alias(args) => alias::run(&args).await,
     }
 }

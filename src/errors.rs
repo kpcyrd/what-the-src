@@ -1,4 +1,4 @@
-pub use log::{error, info};
+pub use log::{debug, error, info, trace};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -12,6 +12,10 @@ pub enum Error {
     Migrate(#[from] sqlx::migrate::MigrateError),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Utf8(#[from] std::str::Utf8Error),
+    #[error(transparent)]
+    AptError(#[from] apt_parser::errors::APTError),
 }
 
 // TODO: consider fixing this

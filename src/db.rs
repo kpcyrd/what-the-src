@@ -1,6 +1,6 @@
 use crate::errors::*;
 use futures::TryStreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
 use sqlx::Pool;
 use std::borrow::Cow;
@@ -74,7 +74,7 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn get_aliased_artifact(&self, chksum: &str) -> Result<Option<Artifact>> {
+    pub async fn resolve_artifact(&self, chksum: &str) -> Result<Option<Artifact>> {
         let result = sqlx::query_as::<_, Artifact>(
             "SELECT *
             FROM artifacts a
@@ -87,24 +87,17 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn insert_ref(
-        &self,
-        chksum: &str,
-        vendor: &str,
-        package: &str,
-        version: &str,
-        filename: Option<&str>,
-    ) -> Result<()> {
+    pub async fn insert_ref(&self, obj: &Ref) -> Result<()> {
         let _result = sqlx::query(
             "INSERT INTO refs (chksum, vendor, package, version, filename)
             VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT DO NOTHING",
         )
-        .bind(chksum)
-        .bind(vendor)
-        .bind(package)
-        .bind(version)
-        .bind(filename)
+        .bind(&obj.chksum)
+        .bind(&obj.vendor)
+        .bind(&obj.package)
+        .bind(&obj.version)
+        .bind(&obj.filename)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -134,6 +127,19 @@ impl Client {
             rows.push(row.into());
         }
         Ok(rows)
+    }
+
+    pub async fn insert_task(&self, task: &Task) -> Result<()> {
+        let _result = sqlx::query(
+            "INSERT INTO tasks(key, data)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(&task.key)
+        .bind(&task.data)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 
@@ -195,4 +201,28 @@ impl From<Ref> for RefView {
             href,
         }
     }
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct Task {
+    pub id: i64,
+    pub key: String,
+    pub data: serde_json::Value,
+}
+
+impl Task {
+    pub fn new(key: String, data: &TaskData) -> Result<Self> {
+        let data = serde_json::to_value(data)?;
+        Ok(Task { id: 0, key, data })
+    }
+
+    pub fn data(&self) -> Result<TaskData> {
+        let data = serde_json::from_value(self.data.clone())?;
+        Ok(data)
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TaskData {
+    FetchTar { url: String },
 }

@@ -27,4 +27,4 @@ CREATE TABLE refs (
     filename VARCHAR
 );
 CREATE INDEX refs_idx_chksum ON refs (chksum);
-CREATE UNIQUE INDEX refs_idx_uniq ON refs (chksum, vendor, package, version);
+CREATE UNIQUE INDEX refs_idx_uniq ON refs (chksum, vendor, package, version, filename);

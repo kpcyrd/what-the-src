@@ -1,5 +1,6 @@
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -15,6 +16,7 @@ pub struct Args {
 pub enum SubCommand {
     Daemon(Daemon),
     Ingest(Ingest),
+    Import(Import),
     Alias(Alias),
 }
 
@@ -28,6 +30,14 @@ pub struct Daemon {
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
 pub struct Ingest {}
+
+/// Start an import of a software vendor
+#[derive(Debug, Parser)]
+pub struct Import {
+    #[arg(long)]
+    pub vendor: String,
+    pub file: PathBuf,
+}
 
 /// This command should merge into Ingest eventually
 #[derive(Debug, Parser)]
