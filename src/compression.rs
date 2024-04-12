@@ -1,15 +1,10 @@
-use crate::args;
-use crate::chksums::{Checksums, Hasher};
-use crate::db;
-use crate::errors::*;
 use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
 use std::pin::Pin;
 use std::result;
 use std::task::Poll;
-use tokio::io;
 use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
 
-enum Decompressor<R> {
+pub enum Decompressor<R> {
     Plain(R),
     Gz(GzipDecoder<R>),
     Xz(XzDecoder<R>),
@@ -52,42 +47,4 @@ impl<R: AsyncBufRead + Unpin> AsyncRead for Decompressor<R> {
             Decompressor::Bz2(r) => Pin::new(r).poll_read(cx, buf),
         }
     }
-}
-
-pub async fn stream_data<R: AsyncRead + Unpin>(
-    reader: R,
-    compression: Option<&str>,
-) -> Result<(Checksums, Checksums)> {
-    let stdin = io::BufReader::new(Hasher::new(reader));
-    let stream = match compression {
-        Some("gz") => Decompressor::gz(stdin),
-        Some("xz") => Decompressor::xz(stdin),
-        Some("bz2") => Decompressor::bz2(stdin),
-        None => Decompressor::Plain(stdin),
-        unknown => panic!("Unknown compression algorithm: {unknown:?}"),
-    };
-    let mut stream = Hasher::new(stream);
-
-    // consume any data
-    io::copy(&mut stream, &mut io::sink()).await?;
-
-    let (stream, inner_digest) = stream.digests();
-    info!("Found digest for inner .tar: {inner_digest:?}");
-    let stream = stream.into_inner().into_inner();
-
-    let (_stream, outer_digest) = stream.digests();
-    info!("Found digests for outer compressed tar: {outer_digest:?}");
-
-    Ok((inner_digest, outer_digest))
-}
-
-pub async fn run(args: &args::Decompress) -> Result<()> {
-    let db = db::Client::create().await?;
-
-    let (inner_digests, outer_digests) =
-        stream_data(io::stdin(), args.compression.as_deref()).await?;
-    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
-        .await?;
-
-    Ok(())
 }

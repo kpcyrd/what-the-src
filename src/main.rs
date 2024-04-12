@@ -32,7 +32,6 @@ async fn main() -> Result<()> {
         SubCommand::Worker(args) => worker::run(&args).await,
         SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => import::run(&args).await,
-        SubCommand::Plumbing(Plumbing::Decompress(args)) => compression::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
     }
 }

@@ -1,11 +1,7 @@
 use crate::args;
-use crate::compression;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
-use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
-use std::borrow::Cow;
-use tokio::io::AsyncReadExt;
 use tokio::time::{self, Duration};
 
 pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
@@ -18,35 +14,23 @@ pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
             let body = req.bytes().await?;
 
             // TODO: do this stuff on the fly
-            let (compression, decompressed) = if url.ends_with(".gz") {
-                let mut reader = GzipDecoder::new(&body[..]);
-                let mut buf = Vec::new();
-                reader.read_to_end(&mut buf).await?;
-                (Some("gz"), Cow::Owned(buf))
+            let compression = if url.ends_with(".gz") {
+                Some("gz")
             } else if url.ends_with(".xz") {
-                let mut reader = XzDecoder::new(&body[..]);
-                let mut buf = Vec::new();
-                reader.read_to_end(&mut buf).await?;
-                (Some("xz"), Cow::Owned(buf))
+                Some("xz")
             } else if url.ends_with(".bz2") {
-                let mut reader = BzDecoder::new(&body[..]);
-                let mut buf = Vec::new();
-                reader.read_to_end(&mut buf).await?;
-                (Some("bz2"), Cow::Owned(buf))
+                Some("bz2")
             } else {
-                (None, Cow::Borrowed(&body[..]))
+                None
             };
 
-            let (hasher, files) = ingest::stream_data(&decompressed[..]).await?;
-            let (_, digests) = hasher.digests();
-            println!("digest={:?}", digests.sha256);
-            db.insert_artifact(&digests.sha256, &files).await?;
-            db.register_chksums_aliases(&digests, &digests.sha256)
-                .await?;
+            let (inner_digests, outer_digests, files) =
+                ingest::stream_data(&body[..], compression).await?;
 
-            // TODO: do this on the fly together with the other thing
-            let (inner_digests, outer_digests) =
-                compression::stream_data(&body[..], compression).await?;
+            println!("digests={:?}", inner_digests);
+            db.insert_artifact(&inner_digests.sha256, &files).await?;
+            db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
+                .await?;
             db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
                 .await?;
         }

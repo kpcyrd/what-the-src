@@ -34,13 +34,15 @@ pub struct Worker {}
 pub enum Plumbing {
     Ingest(Ingest),
     SyncApt(SyncApt),
-    Decompress(Decompress),
     AddRef(AddRef),
 }
 
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
-pub struct Ingest {}
+pub struct Ingest {
+    #[arg(short, long)]
+    pub compression: Option<String>,
+}
 
 /// Start an import of a software vendor
 #[derive(Debug, Parser)]
@@ -50,13 +52,6 @@ pub struct SyncApt {
     #[arg(long)]
     pub fetch: bool,
     pub file: String,
-}
-
-/// Ingest a .tar into the archive
-#[derive(Debug, Parser)]
-pub struct Decompress {
-    #[arg(short, long)]
-    pub compression: Option<String>,
 }
 
 /// This command should merge into Ingest eventually

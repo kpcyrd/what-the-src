@@ -1,5 +1,6 @@
 use crate::args;
-use crate::chksums::Hasher;
+use crate::chksums::{Checksums, Hasher};
+use crate::compression::Decompressor;
 use crate::db;
 use crate::errors::*;
 use digest::Digest;
@@ -15,8 +16,23 @@ pub struct Entry {
     digest: Option<String>,
 }
 
-pub async fn stream_data<R: AsyncRead + Unpin>(reader: R) -> Result<(Hasher<R>, Vec<Entry>)> {
-    let mut tar = Archive::new(Hasher::new(reader));
+pub async fn stream_data<R: AsyncRead + Unpin>(
+    reader: R,
+    compression: Option<&str>,
+) -> Result<(Checksums, Checksums, Vec<Entry>)> {
+    // Setup decompressor
+    let reader = io::BufReader::new(Hasher::new(reader));
+    let reader = match compression {
+        Some("gz") => Decompressor::gz(reader),
+        Some("xz") => Decompressor::xz(reader),
+        Some("bz2") => Decompressor::bz2(reader),
+        None => Decompressor::Plain(reader),
+        unknown => panic!("Unknown compression algorithm: {unknown:?}"),
+    };
+    let reader = Hasher::new(reader);
+
+    // Open archive
+    let mut tar = Archive::new(reader);
     let mut files = Vec::new();
     {
         let mut entries = tar.entries()?;
@@ -60,26 +76,36 @@ pub async fn stream_data<R: AsyncRead + Unpin>(reader: R) -> Result<(Hasher<R>, 
             files.push(Entry { path, digest });
         }
     }
-    let Ok(mut hasher) = tar.into_inner() else {
+    let Ok(mut reader) = tar.into_inner() else {
         panic!("can't get hasher from tar reader")
     };
 
-    // consume any remaining data
-    io::copy(&mut hasher, &mut io::sink()).await?;
+    // Consume any remaining data
+    io::copy(&mut reader, &mut io::sink()).await?;
 
-    Ok((hasher, files))
+    // Determine hashes
+    let (reader, inner_digest) = reader.digests();
+    info!("Found digest for inner .tar: {inner_digest:?}");
+    let reader = reader.into_inner().into_inner();
+
+    let (_stream, outer_digest) = reader.digests();
+    info!("Found digests for outer compressed tar: {outer_digest:?}");
+
+    Ok((inner_digest, outer_digest, files))
 }
 
-pub async fn run(_args: &args::Ingest) -> Result<()> {
+pub async fn run(args: &args::Ingest) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let (hasher, files) = stream_data(io::stdin()).await?;
+    let (inner_digests, outer_digests, files) =
+        stream_data(io::stdin(), args.compression.as_deref()).await?;
 
-    let (_, digests) = hasher.digests();
-    println!("digests={digests:?}");
+    println!("digests={inner_digests:?}");
 
-    db.insert_artifact(&digests.sha256, &files).await?;
-    db.register_chksums_aliases(&digests, &digests.sha256)
+    db.insert_artifact(&inner_digests.sha256, &files).await?;
+    db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
+        .await?;
+    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
         .await?;
 
     Ok(())
