@@ -21,7 +21,9 @@ impl<R: AsyncBufRead> Decompressor<R> {
     }
 
     pub fn bz2(reader: R) -> Self {
-        Decompressor::Bz2(BzDecoder::new(reader))
+        let mut decoder = BzDecoder::new(reader);
+        decoder.multiple_members(true);
+        Decompressor::Bz2(decoder)
     }
 
     pub fn into_inner(self) -> R {
