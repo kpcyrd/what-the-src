@@ -6,13 +6,12 @@ use digest::Digest;
 use futures::stream::StreamExt;
 use serde::Serialize;
 use sha2::Sha256;
-use std::path::PathBuf;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
 
 #[derive(Debug, Serialize)]
 pub struct Entry {
-    path: PathBuf,
+    path: String,
     digest: Option<String>,
 }
 
@@ -31,7 +30,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(reader: R) -> Result<(Hasher<R>, 
                     _ => false,
                 };
                 let path = header.path()?;
-                (PathBuf::from(path), is_file)
+                let path = path.to_string_lossy();
+                (path.into_owned(), is_file)
             };
 
             let digest = if is_file {
