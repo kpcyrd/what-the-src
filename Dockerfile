@@ -1,6 +1,6 @@
 FROM rust:alpine3.19
 ENV RUSTFLAGS="-C target-feature=-crt-static"
-RUN apk add musl-dev postgresql-dev
+RUN apk add musl-dev postgresql-dev bzip2-dev xz-dev
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/target/release/what-the-src /
 
 FROM alpine:3.19
-RUN apk add libgcc libpq
+RUN apk add libgcc libpq libbz2 xz-libs
 WORKDIR /app
 COPY --from=0 /what-the-src /
 USER nobody
