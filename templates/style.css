@@ -19,10 +19,13 @@ main h2 {
     margin: 5px 0;
 }
 
+.word-wrap {
+    word-wrap: break-word;
+}
+
 .alias {
     background-color: lightblue;
     padding: 5px;
-    word-wrap: break-word;
 }
 
 #files {

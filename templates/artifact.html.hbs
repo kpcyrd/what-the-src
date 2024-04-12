@@ -3,16 +3,16 @@
 {{~/inline~}}
 
 {{#*inline "page"}}
-<h1>{{artifact.chksum}}</h1>
+<h1 class="word-wrap">{{artifact.chksum}}</h1>
 
 {{~#if alias}}
-<div class="alias">
+<div class="alias word-wrap">
 <h2>Alias</h2>
 <p>Detected
 <a href="/artifact/{{artifact.chksum}}">canonical page</a>
 for alias
-{{#if alias.reason}}
-({{alias.reason}})
+{{~#if alias.reason}}
+ ({{alias.reason}})
 {{~/if}}
 : <code>{{alias.alias_from}}</code></p>
 </div>
@@ -22,7 +22,7 @@ for alias
 <h2>Build input of</h2>
 <ul>
 {{#each refs}}
-<li>
+<li class="word-wrap">
 <b>{{this.display_vendor}}:</b>
 {{#if this.href}}
 <a href="{{this.href}}">
