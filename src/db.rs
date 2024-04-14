@@ -105,7 +105,8 @@ impl Client {
         let _result = sqlx::query(
             "INSERT INTO refs (chksum, vendor, package, version, filename)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT DO NOTHING",
+            ON CONFLICT (chksum, vendor, package, version) DO UPDATE
+            SET filename = COALESCE(EXCLUDED.filename, refs.filename)",
         )
         .bind(&obj.chksum)
         .bind(&obj.vendor)

@@ -55,6 +55,9 @@ pub struct IngestPacmanSnapshot {
     pub package: String,
     #[arg(long)]
     pub version: String,
+    /// Ignore .SRCINFO even if present
+    #[arg(long)]
+    pub prefer_pkgbuild: bool,
     #[arg(long)]
     pub fetch: bool,
     pub file: String,

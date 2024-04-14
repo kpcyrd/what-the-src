@@ -152,7 +152,10 @@ pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
         Box::new(file)
     };
 
-    let snapshot = Snapshot::parse_from_tgz(reader).await?;
+    let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
+    if args.prefer_pkgbuild {
+        snapshot.srcinfo = None;
+    }
     let entries = snapshot.source_entries()?;
 
     for entry in entries {
