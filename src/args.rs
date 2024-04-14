@@ -28,7 +28,11 @@ pub struct Daemon {
 
 /// Run worker for background jobs
 #[derive(Debug, Parser)]
-pub struct Worker {}
+pub struct Worker {
+    /// Request through a proxy to evade rate limits
+    #[arg(long)]
+    pub socks5: Option<String>,
+}
 
 #[derive(Debug, Subcommand)]
 pub enum Plumbing {
