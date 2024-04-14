@@ -9,6 +9,7 @@ pub mod errors;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod sync;
+pub mod utils;
 pub mod worker;
 
 use crate::args::{Args, Plumbing, SubCommand};
@@ -37,6 +38,7 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {
             ingest::pacman::run(&args).await
         }
+        SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncRpm(args)) => sync::rpm::run(&args).await,

@@ -1,13 +1,12 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
+use crate::utils;
 use async_compression::tokio::bufread::GzipDecoder;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use std::path::Path;
-use tokio::fs;
-use tokio::io::{self, AsyncRead, AsyncReadExt};
+use tokio::io::{self, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
-use tokio_util::io::StreamReader;
 
 fn matches_repo(path: &Path, repos: &[String]) -> bool {
     let Ok(path) = path.strip_prefix("state-main") else {
@@ -25,16 +24,7 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
     let db = db::Client::create().await?;
     let vendor = &args.vendor;
 
-    let reader: Box<dyn AsyncRead + Unpin> = if args.fetch {
-        let resp = reqwest::get(&args.file).await?.error_for_status()?;
-        let stream = resp.bytes_stream();
-        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-        Box::new(stream)
-    } else {
-        let file = fs::File::open(&args.file).await?;
-        Box::new(file)
-    };
-
+    let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
     let reader = io::BufReader::new(reader);
     let reader = GzipDecoder::new(reader);
     let mut tar = Archive::new(reader);

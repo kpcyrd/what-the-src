@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 apt-parser = "1.0.6"
 async-compression = { version = "0.4.8", features = ["tokio", "gzip", "xz", "bzip2"] }
+autocompress = { version = "0.6.0", default-features = false, features = ["bzip2", "gzip", "xz", "tokio"] }
 blake2 = "0.10.6"
 clap = { version = "4.5.4", features = ["derive", "env"] }
 digest = "0.10.7"

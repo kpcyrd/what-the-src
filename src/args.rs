@@ -38,6 +38,7 @@ pub struct Worker {
 pub enum Plumbing {
     Ingest(Ingest),
     IngestPacmanSnapshot(IngestPacmanSnapshot),
+    IngestRpm(IngestRpm),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
     SyncRpm(SyncRpm),
@@ -63,6 +64,20 @@ pub struct IngestPacmanSnapshot {
     /// Ignore .SRCINFO even if present
     #[arg(long)]
     pub prefer_pkgbuild: bool,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Ingest a .src.rpm
+#[derive(Debug, Parser)]
+pub struct IngestRpm {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub package: String,
+    #[arg(long)]
+    pub version: String,
     #[arg(long)]
     pub fetch: bool,
     pub file: String,

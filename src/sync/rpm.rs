@@ -108,7 +108,7 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
     let md = Metadata::from_xml(&buf)?;
     for pkg in md.packages {
         let package = pkg.name;
-        let version = format!("{}.{}", pkg.version.ver, pkg.version.rel);
+        let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
 
         if db.get_package(vendor, &package, &version).await?.is_some() {
             debug!("Package is already imported: vendor={vendor:?} package={package:?} version={version:?}");

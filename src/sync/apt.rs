@@ -2,27 +2,20 @@ use crate::apt;
 use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
+use crate::utils;
 use async_compression::tokio::bufread::XzDecoder;
-use futures::TryStreamExt;
-use tokio::fs;
 use tokio::io::{self, AsyncReadExt};
-use tokio_util::io::StreamReader;
 
 pub async fn run(args: &args::SyncApt) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let buf = if args.fetch {
-        let resp = reqwest::get(&args.file).await?.error_for_status()?;
-        let stream = resp.bytes_stream();
-        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-        let stream = io::BufReader::new(stream);
-        let mut stream = XzDecoder::new(stream);
-        let mut buf = Vec::new();
-        stream.read_to_end(&mut buf).await?;
-        buf
-    } else {
-        fs::read(&args.file).await?
-    };
+    let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
+    let reader = io::BufReader::new(reader);
+    let mut reader = XzDecoder::new(reader);
+
+    let mut buf = Vec::new();
+    reader.read_to_end(&mut buf).await?;
+
     let sources = apt::SourcesIndex::parse(&buf)?;
 
     for pkg in &sources.pkgs {

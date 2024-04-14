@@ -2,13 +2,12 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::pkgbuild;
+use crate::utils;
 use async_compression::tokio::bufread::GzipDecoder;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use srcinfo::Srcinfo;
-use tokio::fs;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::Archive;
-use tokio_util::io::StreamReader;
 
 #[derive(Debug)]
 pub struct Snapshot {
@@ -201,16 +200,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let reader: Box<dyn AsyncRead + Unpin> = if args.fetch {
-        let resp = reqwest::get(&args.file).await?.error_for_status()?;
-        let stream = resp.bytes_stream();
-        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-        Box::new(stream)
-    } else {
-        let file = fs::File::open(&args.file).await?;
-        Box::new(file)
-    };
-
+    let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
     let refs = stream_data(
         reader,
         &args.vendor,
