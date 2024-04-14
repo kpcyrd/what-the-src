@@ -10,7 +10,7 @@ body {
     background-color: white;
 }
 
-main h1 {
+.title-chksum {
     font-size: 20px;
     font-family: monospace;
 }
