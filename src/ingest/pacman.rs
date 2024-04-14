@@ -69,8 +69,15 @@ impl Snapshot {
     ) -> Vec<SourceEntry> {
         let mut out = Vec::new();
         for i in 0..max {
+            let url = sources.get(i).map(|url| {
+                url.split_once("::")
+                    .map(|(_filename, url)| url)
+                    .unwrap_or(url)
+                    .to_string()
+            });
+
             out.push(SourceEntry {
-                url: sources.get(i).cloned(),
+                url,
                 sha256: Self::filter_skip(sha256sums.get(i)),
                 sha512: Self::filter_skip(sha512sums.get(i)),
                 blake2b: Self::filter_skip(b2sums.get(i)),
