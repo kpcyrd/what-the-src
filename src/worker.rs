@@ -46,6 +46,7 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             let repo = package.replace('+', "plus");
             let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz");
 
+            info!("Downloading pacman git snapshot: {url:?}");
             let resp = client.get(&url).send().await?.error_for_status()?;
             let stream = resp.bytes_stream();
             let reader =
