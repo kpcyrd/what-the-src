@@ -56,6 +56,13 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
                 info!("insert: {r:?}");
                 db.insert_ref(&r).await?;
             }
+
+            db.insert_package(&db::Package {
+                vendor,
+                package,
+                version,
+            })
+            .await?;
         }
     }
 

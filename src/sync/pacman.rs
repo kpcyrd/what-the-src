@@ -25,6 +25,7 @@ fn matches_repo(path: &Path, repos: &[String]) -> bool {
 
 pub async fn run(args: &args::SyncPacman) -> Result<()> {
     let db = db::Client::create().await?;
+    let vendor = &args.vendor;
 
     let reader: Box<dyn AsyncRead + Unpin> = if args.fetch {
         let resp = reqwest::get(&args.file).await?.error_for_status()?;
@@ -65,11 +66,16 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
         };
         let Some(tag) = chunker.next() else { continue };
 
+        if db.get_package(vendor, pkgbase, version).await?.is_some() {
+            debug!("Package is already imported: vendor={vendor:?} package={pkgbase:?} version={version:?}");
+            continue;
+        }
+
         info!("package={pkgbase:?} version={version:?} tag={tag:?}");
         db.insert_task(&db::Task::new(
             format!("pacman-git-snapshot:{pkgbase}:{tag}"),
             &db::TaskData::PacmanGitSnapshot {
-                vendor: args.vendor.to_string(),
+                vendor: vendor.to_string(),
                 package: pkgbase.to_string(),
                 version: version.to_string(),
                 tag: tag.to_string(),

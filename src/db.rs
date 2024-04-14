@@ -179,6 +179,41 @@ impl Client {
         .await?;
         Ok(())
     }
+
+    pub async fn insert_package(&self, package: &Package) -> Result<()> {
+        let _result = sqlx::query(
+            "INSERT INTO packages (vendor, package, version)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(&package.vendor)
+        .bind(&package.package)
+        .bind(&package.version)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_package(
+        &self,
+        vendor: &str,
+        package: &str,
+        version: &str,
+    ) -> Result<Option<Package>> {
+        let result = sqlx::query_as(
+            "SELECT *
+            FROM packages
+            WHERE vendor = $1
+            AND package = $2
+            AND version = $3",
+        )
+        .bind(vendor)
+        .bind(package)
+        .bind(version)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -271,4 +306,11 @@ pub enum TaskData {
         version: String,
         tag: String,
     },
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct Package {
+    pub vendor: String,
+    pub package: String,
+    pub version: String,
 }
