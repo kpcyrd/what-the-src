@@ -34,6 +34,7 @@ pub struct Worker {}
 pub enum Plumbing {
     Ingest(Ingest),
     SyncApt(SyncApt),
+    SyncPacman(SyncPacman),
     AddRef(AddRef),
 }
 
@@ -44,13 +45,26 @@ pub struct Ingest {
     pub compression: Option<String>,
 }
 
-/// Start an import of a software vendor
+/// Start an import of a software vendor (apt)
 #[derive(Debug, Parser)]
 pub struct SyncApt {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]
     pub fetch: bool,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (pacman)
+#[derive(Debug, Parser)]
+pub struct SyncPacman {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
+    /// The repositories to ingest e.g. `core-x86_64` or `extra-x86_64`
+    #[arg(short, long = "repo", required = true)]
+    pub repos: Vec<String>,
     pub file: String,
 }
 

@@ -6,8 +6,8 @@ pub mod compression;
 pub mod daemon;
 pub mod db;
 pub mod errors;
-pub mod import;
 pub mod ingest;
+pub mod sync;
 pub mod worker;
 
 use crate::args::{Args, Plumbing, SubCommand};
@@ -31,7 +31,8 @@ async fn main() -> Result<()> {
         SubCommand::Daemon(args) => daemon::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
         SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::run(&args).await,
-        SubCommand::Plumbing(Plumbing::SyncApt(args)) => import::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
     }
 }
