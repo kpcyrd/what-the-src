@@ -262,5 +262,13 @@ impl Task {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TaskData {
-    FetchTar { url: String },
+    FetchTar {
+        url: String,
+    },
+    PacmanGitSnapshot {
+        vendor: String,
+        package: String,
+        version: String,
+        tag: String,
+    },
 }

@@ -1,4 +1,4 @@
-pub use log::{debug, error, info, trace};
+pub use log::{debug, error, info, trace, warn};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

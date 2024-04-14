@@ -76,6 +76,18 @@ impl Snapshot {
                     .to_string()
             });
 
+            // Skip entries that we know for sure are not urls
+            if let Some(url) = &url {
+                // TODO: download and ingest the file
+                match url.split_once("://") {
+                    Some(("https", _)) => {
+                        debug!("Detected url: {url:?}");
+                    }
+                    Some(_) => (),
+                    None => continue,
+                };
+            }
+
             out.push(SourceEntry {
                 url,
                 sha256: Self::filter_skip(sha256sums.get(i)),
@@ -106,7 +118,14 @@ impl Snapshot {
                 b2sums,
             ))
         } else {
-            let pkgbuild = pkgbuild::parse(self.pkgbuild.as_bytes())?;
+            let pkgbuild = match pkgbuild::parse(self.pkgbuild.as_bytes()) {
+                Ok(pkgbuild) => pkgbuild,
+                Err(err) => {
+                    warn!("Skipping invalid PKGBUILD: {err:#}");
+                    return Ok(Vec::new());
+                }
+            };
+
             let max = [
                 pkgbuild.sha256sums.len(),
                 pkgbuild.sha512sums.len(),
@@ -146,6 +165,39 @@ impl SourceEntry {
     }
 }
 
+pub async fn stream_data<R: AsyncRead + Unpin>(
+    reader: R,
+    vendor: &str,
+    package: &str,
+    version: &str,
+    prefer_pkgbuild: bool,
+) -> Result<Vec<db::Ref>> {
+    let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
+    if prefer_pkgbuild {
+        snapshot.srcinfo = None;
+    }
+    let entries = snapshot.source_entries()?;
+
+    let mut out = Vec::new();
+    for entry in entries {
+        debug!("Found source entry: {entry:?}");
+        let Some(chksum) = entry.preferred_chksum() else {
+            continue;
+        };
+
+        let r = db::Ref {
+            chksum,
+            vendor: vendor.to_string(),
+            package: package.to_string(),
+            version: version.to_string(),
+            filename: entry.url,
+        };
+        out.push(r);
+    }
+
+    Ok(out)
+}
+
 pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     let db = db::Client::create().await?;
 
@@ -159,30 +211,16 @@ pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
         Box::new(file)
     };
 
-    let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
-    if args.prefer_pkgbuild {
-        snapshot.srcinfo = None;
-    }
-    let entries = snapshot.source_entries()?;
+    let refs = stream_data(
+        reader,
+        &args.vendor,
+        &args.package,
+        &args.version,
+        args.prefer_pkgbuild,
+    )
+    .await?;
 
-    for entry in entries {
-        debug!("Found source entry: {entry:?}");
-        let Some(chksum) = entry.preferred_chksum() else {
-            continue;
-        };
-
-        if let Some(url) = &entry.url {
-            // TODO: download and ingest the file
-            info!("url: {url:?} ({chksum})");
-        }
-
-        let r = db::Ref {
-            chksum,
-            vendor: args.vendor.clone(),
-            package: args.package.clone(),
-            version: args.version.clone(),
-            filename: entry.url,
-        };
+    for r in refs {
         info!("insert: {r:?}");
         db.insert_ref(&r).await?;
     }

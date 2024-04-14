@@ -1,5 +1,5 @@
 use crate::args;
-// use crate::db;
+use crate::db;
 use crate::errors::*;
 use async_compression::tokio::bufread::GzipDecoder;
 use futures::StreamExt;
@@ -24,7 +24,7 @@ fn matches_repo(path: &Path, repos: &[String]) -> bool {
 }
 
 pub async fn run(args: &args::SyncPacman) -> Result<()> {
-    // let db = db::Client::create().await?;
+    let db = db::Client::create().await?;
 
     let reader: Box<dyn AsyncRead + Unpin> = if args.fetch {
         let resp = reqwest::get(&args.file).await?.error_for_status()?;
@@ -52,8 +52,6 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
             continue;
         }
 
-        // dbg!(&entry);
-
         let mut buf = String::new();
         entry.read_to_string(&mut buf).await?;
         debug!("Found data in state repo: {buf:?}");
@@ -62,12 +60,22 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
         let Some(pkgbase) = chunker.next() else {
             continue;
         };
-        let Some(_version) = chunker.next() else {
+        let Some(version) = chunker.next() else {
             continue;
         };
         let Some(tag) = chunker.next() else { continue };
 
-        println!("https://gitlab.archlinux.org/archlinux/packaging/packages/{pkgbase}/-/archive/{tag}/{pkgbase}-{tag}.tar.gz");
+        info!("package={pkgbase:?} version={version:?} tag={tag:?}");
+        db.insert_task(&db::Task::new(
+            format!("pacman-git-snapshot:{pkgbase}:{tag}"),
+            &db::TaskData::PacmanGitSnapshot {
+                vendor: args.vendor.to_string(),
+                package: pkgbase.to_string(),
+                version: version.to_string(),
+                tag: tag.to_string(),
+            },
+        )?)
+        .await?;
     }
 
     Ok(())

@@ -2,7 +2,10 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
+use futures::TryStreamExt;
+use tokio::io;
 use tokio::time::{self, Duration};
+use tokio_util::io::StreamReader;
 
 pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
     let data = task.data()?;
@@ -33,6 +36,26 @@ pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
                 .await?;
             db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
                 .await?;
+        }
+        TaskData::PacmanGitSnapshot {
+            vendor,
+            package,
+            version,
+            tag,
+        } => {
+            let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{package}/-/archive/{tag}/{package}-{tag}.tar.gz");
+
+            let resp = reqwest::get(&url).await?.error_for_status()?;
+            let stream = resp.bytes_stream();
+            let reader =
+                StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
+            let refs =
+                ingest::pacman::stream_data(reader, &vendor, &package, &version, false).await?;
+
+            for r in refs {
+                info!("insert: {r:?}");
+                db.insert_ref(&r).await?;
+            }
         }
     }
 
