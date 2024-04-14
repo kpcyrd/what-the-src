@@ -43,7 +43,8 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             version,
             tag,
         } => {
-            let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{package}/-/archive/{tag}/{package}-{tag}.tar.gz");
+            let repo = package.replace('+', "plus");
+            let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz");
 
             let resp = client.get(&url).send().await?.error_for_status()?;
             let stream = resp.bytes_stream();

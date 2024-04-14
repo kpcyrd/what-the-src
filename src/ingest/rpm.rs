@@ -2,9 +2,10 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::utils;
-use async_compression::tokio::bufread::GzipDecoder;
-use futures::{StreamExt, TryStreamExt};
-use tokio::io::{self, AsyncRead, AsyncReadExt};
+// use async_compression::tokio::bufread::GzipDecoder;
+// use futures::{StreamExt, TryStreamExt};
+// use tokio::io::{self, AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
     mut reader: R,
@@ -33,6 +34,9 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             println!("tgz={file_name:?}");
         }
         */
+        let _ = vendor;
+        let _ = package;
+        let _ = version;
     }
 
     todo!()
