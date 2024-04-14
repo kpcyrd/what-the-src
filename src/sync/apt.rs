@@ -14,9 +14,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
     let buf = if args.fetch {
         let resp = reqwest::get(&args.file).await?.error_for_status()?;
         let stream = resp.bytes_stream();
-        let stream = StreamReader::new(
-            stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-        );
+        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
         let stream = io::BufReader::new(stream);
         let mut stream = XzDecoder::new(stream);
         let mut buf = Vec::new();

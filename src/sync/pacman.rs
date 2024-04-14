@@ -1,5 +1,5 @@
 use crate::args;
-use crate::db;
+// use crate::db;
 use crate::errors::*;
 use async_compression::tokio::bufread::GzipDecoder;
 use futures::StreamExt;
@@ -16,7 +16,7 @@ fn matches_repo(path: &Path, repos: &[String]) -> bool {
         return false;
     };
     for repo in repos {
-        if path.starts_with(&repo) {
+        if path.starts_with(repo) {
             return true;
         }
     }
@@ -24,19 +24,16 @@ fn matches_repo(path: &Path, repos: &[String]) -> bool {
 }
 
 pub async fn run(args: &args::SyncPacman) -> Result<()> {
-    let db = db::Client::create().await?;
-    let buf;
+    // let db = db::Client::create().await?;
 
     let reader: Box<dyn AsyncRead + Unpin> = if args.fetch {
         let resp = reqwest::get(&args.file).await?.error_for_status()?;
         let stream = resp.bytes_stream();
-        let stream = StreamReader::new(
-            stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-        );
+        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
         Box::new(stream)
     } else {
-        buf = fs::read(&args.file).await?;
-        Box::new(&buf[..])
+        let file = fs::File::open(&args.file).await?;
+        Box::new(file)
     };
 
     let reader = io::BufReader::new(reader);

@@ -18,6 +18,12 @@ pub enum Error {
     AptError(#[from] apt_parser::errors::APTError),
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    Srcinfo(#[from] srcinfo::Error),
+    #[error("Parser encountered invalid data")]
+    InvalidData,
+    #[error("Parser encountered invalid PKGBUILD: {0}")]
+    InvalidPkgbuild(String),
 }
 
 // TODO: consider fixing this

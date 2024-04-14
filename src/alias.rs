@@ -7,7 +7,8 @@ use tokio::io;
 pub async fn run(args: &args::AddRef) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let (_inner_digests, outer_digests, _files) = ingest::stream_data(io::stdin(), None).await?;
+    let (_inner_digests, outer_digests, _files) =
+        ingest::tar::stream_data(io::stdin(), None).await?;
     let chksum = outer_digests.sha256;
 
     db.insert_ref(&db::Ref {

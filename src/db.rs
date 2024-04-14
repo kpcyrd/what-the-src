@@ -31,7 +31,7 @@ impl Client {
         Ok(Client { pool })
     }
 
-    pub async fn insert_artifact(&self, chksum: &str, files: &[ingest::Entry]) -> Result<()> {
+    pub async fn insert_artifact(&self, chksum: &str, files: &[ingest::tar::Entry]) -> Result<()> {
         let files = serde_json::to_value(files)?;
         let _result = sqlx::query(
             "INSERT INTO artifacts (db_version, chksum, files)

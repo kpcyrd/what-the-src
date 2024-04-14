@@ -1,9 +1,8 @@
 use digest::Digest;
 use sha2::{Sha256, Sha512};
 use std::pin::Pin;
-use std::result;
 use std::task::Poll;
-use tokio::io::{AsyncRead, ReadBuf};
+use tokio::io::{self, AsyncRead, ReadBuf};
 
 pub struct Hasher<R> {
     reader: R,
@@ -16,7 +15,7 @@ impl<R: AsyncRead + Unpin> AsyncRead for Hasher<R> {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut ReadBuf<'_>,
-    ) -> Poll<result::Result<(), std::io::Error>> {
+    ) -> Poll<io::Result<()>> {
         let before = buf.filled().len();
         if let Poll::Ready(x) = Pin::new(&mut self.reader).poll_read(cx, buf) {
             let buf = buf.filled();

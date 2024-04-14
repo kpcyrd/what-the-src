@@ -33,6 +33,7 @@ pub struct Worker {}
 #[derive(Debug, Subcommand)]
 pub enum Plumbing {
     Ingest(Ingest),
+    IngestPacmanSnapshot(IngestPacmanSnapshot),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
     AddRef(AddRef),
@@ -43,6 +44,20 @@ pub enum Plumbing {
 pub struct Ingest {
     #[arg(short, long)]
     pub compression: Option<String>,
+}
+
+/// Ingest a pacman git .tar.gz
+#[derive(Debug, Parser)]
+pub struct IngestPacmanSnapshot {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub package: String,
+    #[arg(long)]
+    pub version: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
 }
 
 /// Start an import of a software vendor (apt)

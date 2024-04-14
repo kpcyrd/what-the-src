@@ -25,7 +25,7 @@ pub async fn do_task(db: &db::Client, task: &Task) -> Result<()> {
             };
 
             let (inner_digests, outer_digests, files) =
-                ingest::stream_data(&body[..], compression).await?;
+                ingest::tar::stream_data(&body[..], compression).await?;
 
             println!("digests={:?}", inner_digests);
             db.insert_artifact(&inner_digests.sha256, &files).await?;

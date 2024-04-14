@@ -7,6 +7,7 @@ pub mod daemon;
 pub mod db;
 pub mod errors;
 pub mod ingest;
+pub mod pkgbuild;
 pub mod sync;
 pub mod worker;
 
@@ -30,7 +31,10 @@ async fn main() -> Result<()> {
     match args.subcommand {
         SubCommand::Daemon(args) => daemon::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
-        SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::run(&args).await,
+        SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::tar::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {
+            ingest::pacman::run(&args).await
+        }
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,

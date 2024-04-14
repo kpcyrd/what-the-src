@@ -1,8 +1,7 @@
 use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
 use std::pin::Pin;
-use std::result;
 use std::task::Poll;
-use tokio::io::{AsyncBufRead, AsyncRead, ReadBuf};
+use tokio::io::{self, AsyncBufRead, AsyncRead, ReadBuf};
 
 pub enum Decompressor<R> {
     Plain(R),
@@ -41,7 +40,7 @@ impl<R: AsyncBufRead + Unpin> AsyncRead for Decompressor<R> {
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut ReadBuf<'_>,
-    ) -> Poll<result::Result<(), std::io::Error>> {
+    ) -> Poll<io::Result<()>> {
         match self.get_mut() {
             Decompressor::Plain(r) => Pin::new(r).poll_read(cx, buf),
             Decompressor::Gz(r) => Pin::new(r).poll_read(cx, buf),
