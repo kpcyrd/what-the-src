@@ -306,6 +306,12 @@ pub enum TaskData {
         version: String,
         tag: String,
     },
+    SourceRpm {
+        vendor: String,
+        package: String,
+        version: String,
+        url: String,
+    },
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

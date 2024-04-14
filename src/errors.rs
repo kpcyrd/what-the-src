@@ -13,6 +13,8 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
+    Xml(#[from] serde_xml_rs::Error),
+    #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),
@@ -20,10 +22,14 @@ pub enum Error {
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
     Srcinfo(#[from] srcinfo::Error),
+    #[error(transparent)]
+    Rpm(#[from] rpm::Error),
     #[error("Parser encountered invalid data")]
     InvalidData,
     #[error("Parser encountered invalid PKGBUILD: {0}")]
     InvalidPkgbuild(String),
+    #[error("Rpm is missing a `primary` data entry")]
+    RpmMissingPrimary,
 }
 
 // TODO: consider fixing this

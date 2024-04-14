@@ -20,8 +20,10 @@ use env_logger::Env;
 async fn main() -> Result<()> {
     let args = Args::parse();
     let log_level = match args.verbose {
-        0 => "info",
-        1 => "debug",
+        0 => "what_the_src=info",
+        1 => "info,what_the_src=debug",
+        2 => "debug",
+        3 => "debug,what_the_src=trace",
         _ => "trace",
     };
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
@@ -37,6 +39,7 @@ async fn main() -> Result<()> {
         }
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncRpm(args)) => sync::rpm::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
     }
 }

@@ -2,12 +2,10 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use async_compression::tokio::bufread::GzipDecoder;
-use futures::StreamExt;
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use std::path::Path;
 use tokio::fs;
-use tokio::io;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
 use tokio_util::io::StreamReader;
 

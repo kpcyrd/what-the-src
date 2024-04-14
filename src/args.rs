@@ -40,6 +40,7 @@ pub enum Plumbing {
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
+    SyncRpm(SyncRpm),
     AddRef(AddRef),
 }
 
@@ -88,6 +89,14 @@ pub struct SyncPacman {
     #[arg(short, long = "repo", required = true)]
     pub repos: Vec<String>,
     pub file: String,
+}
+
+/// Start an import of a software vendor (pacman)
+#[derive(Debug, Parser)]
+pub struct SyncRpm {
+    #[arg(long)]
+    pub vendor: String,
+    pub url: String,
 }
 
 /// This command should merge into Ingest eventually

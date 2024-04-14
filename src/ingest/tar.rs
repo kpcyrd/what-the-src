@@ -100,7 +100,7 @@ pub async fn run(args: &args::Ingest) -> Result<()> {
     let (inner_digests, outer_digests, files) =
         stream_data(io::stdin(), args.compression.as_deref()).await?;
 
-    println!("digests={inner_digests:?}");
+    info!("digests={inner_digests:?}");
 
     db.insert_artifact(&inner_digests.sha256, &files).await?;
     db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)

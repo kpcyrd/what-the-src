@@ -30,7 +30,7 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             let (inner_digests, outer_digests, files) =
                 ingest::tar::stream_data(&body[..], compression).await?;
 
-            println!("digests={:?}", inner_digests);
+            info!("digests={:?}", inner_digests);
             db.insert_artifact(&inner_digests.sha256, &files).await?;
             db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
                 .await?;
@@ -63,6 +63,35 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
                 version,
             })
             .await?;
+        }
+        TaskData::SourceRpm {
+            vendor,
+            package,
+            version,
+            url,
+        } => {
+            let bytes = client
+                .get(&url)
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await?;
+
+            // TODO
+            let _rpm = rpm::Package::parse(&mut &bytes[..])?;
+            let _ = vendor;
+            let _ = package;
+            let _ = version;
+
+            /*
+            db.insert_package(&db::Package {
+                vendor,
+                package,
+                version,
+            })
+            .await?;
+            */
         }
     }
 
