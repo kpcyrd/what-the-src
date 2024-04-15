@@ -13,7 +13,8 @@ pub struct Args {
 
 #[derive(Debug, Subcommand)]
 pub enum SubCommand {
-    Daemon(Daemon),
+    #[command(alias = "daemon")]
+    Web(Web),
     Worker(Worker),
     #[command(subcommand)]
     Plumbing(Plumbing),
@@ -21,7 +22,7 @@ pub enum SubCommand {
 
 /// Run the web server daemon
 #[derive(Debug, Parser)]
-pub struct Daemon {
+pub struct Web {
     #[arg(short = 'B', long, env)]
     pub bind_addr: SocketAddr,
 }

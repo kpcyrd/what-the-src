@@ -81,7 +81,7 @@ pub async fn rejection(err: warp::Rejection) -> result::Result<impl warp::Reply,
     Ok(warp::reply::with_status(message, code))
 }
 
-pub async fn run(args: &args::Daemon) -> Result<()> {
+pub async fn run(args: &args::Web) -> Result<()> {
     let mut hbs = Handlebars::new();
     hbs.register_embed_templates::<Assets>()?;
 

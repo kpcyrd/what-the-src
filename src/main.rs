@@ -3,13 +3,13 @@ pub mod apt;
 pub mod args;
 pub mod chksums;
 pub mod compression;
-pub mod daemon;
 pub mod db;
 pub mod errors;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod sync;
 pub mod utils;
+pub mod web;
 pub mod worker;
 
 use crate::args::{Args, Plumbing, SubCommand};
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     dotenvy::dotenv().ok();
 
     match args.subcommand {
-        SubCommand::Daemon(args) => daemon::run(&args).await,
+        SubCommand::Web(args) => web::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
         SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::tar::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {

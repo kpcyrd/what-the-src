@@ -1,6 +1,6 @@
 ---
 services:
-  daemon:
+  web:
     build: .
     init: true
     ports:
