@@ -130,7 +130,7 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
         .await?;
     }
 
-    todo!()
+    Ok(())
 }
 
 #[cfg(test)]
