@@ -9,13 +9,24 @@ use std::convert::Infallible;
 use std::result;
 use std::sync::Arc;
 use warp::reject;
-use warp::{http::StatusCode, Filter};
+use warp::{
+    http::{header::CACHE_CONTROL, HeaderValue, StatusCode},
+    Filter,
+};
 
 #[derive(RustEmbed)]
 #[folder = "templates"]
 #[include = "*.hbs"]
 #[include = "*.css"]
 struct Assets;
+
+fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
+    warp::reply::with_header(
+        reply,
+        CACHE_CONTROL,
+        HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300"),
+    )
+}
 
 async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
     let html = match hbs.render(
@@ -95,19 +106,22 @@ pub async fn run(args: &args::Web) -> Result<()> {
     let index = warp::get()
         .and(hbs.clone())
         .and(warp::path::end())
-        .and_then(index);
+        .and_then(index)
+        .map(cache_control);
     let artifact = warp::get()
         .and(hbs)
         .and(db)
         .and(warp::path("artifact"))
         .and(warp::path::param())
         .and(warp::path::end())
-        .and_then(artifact);
+        .and_then(artifact)
+        .map(cache_control);
     let style = warp::get()
         .and(warp::path("assets"))
         .and(warp::path("style.css"))
         .and(warp::path::end())
-        .and(warp_embed::embed_one(&Assets, "style.css"));
+        .and(warp_embed::embed_one(&Assets, "style.css"))
+        .map(cache_control);
 
     let routes = warp::any()
         .and(index.or(artifact).or(style))
