@@ -12,6 +12,7 @@ async-compression = { version = "0.4.8", features = ["tokio", "gzip", "xz", "bzi
 autocompress = { version = "0.6.0", default-features = false, features = ["bzip2", "gzip", "xz", "tokio"] }
 blake2 = "0.10.6"
 clap = { version = "4.5.4", features = ["derive", "env"] }
+diffy-fork-filenames = "0.4.0"
 digest = "0.10.7"
 dotenvy = "0.15.7"
 env_logger = "0.11.3"

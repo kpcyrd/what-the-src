@@ -5,15 +5,15 @@ use crate::db;
 use crate::errors::*;
 use digest::Digest;
 use futures::stream::StreamExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
-    path: String,
-    digest: Option<String>,
+    pub path: String,
+    pub digest: Option<String>,
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(

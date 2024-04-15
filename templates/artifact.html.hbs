@@ -41,16 +41,10 @@ for alias
 </ul>
 {{/if}}
 
-{{#if artifact.files}}
+{{#if files}}
 <h2>Content</h2>
 <pre id="files">
-{{#each artifact.files}}
-{{#if this.digest}}
-{{this.digest}}  {{this.path}}
-{{else}}
-                                                                         {{this.path}}
-{{/if}}
-{{/each}}
+{{files}}
 </pre>
 {{/if}}
 {{/inline}}

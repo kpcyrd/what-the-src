@@ -90,10 +90,14 @@ impl Client {
 
     pub async fn resolve_artifact(&self, chksum: &str) -> Result<Option<Artifact>> {
         let result = sqlx::query_as::<_, Artifact>(
-            "SELECT *
+            "SELECT a.*
             FROM artifacts a
             LEFT JOIN aliases x ON x.alias_to = a.chksum
-            WHERE x.alias_from = $1",
+            WHERE x.alias_from = $1
+            UNION ALL
+            SELECT a.*
+            FROM artifacts a
+            WHERE a.chksum = $1",
         )
         .bind(chksum)
         .fetch_optional(&self.pool)

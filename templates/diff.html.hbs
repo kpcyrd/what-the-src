@@ -1,0 +1,34 @@
+{{#*inline "title"}}
+diff {{diff_from}}:{{diff_to}} - What the src?!
+{{/inline}}
+
+{{#*inline "page"}}
+{{#if sorted}}
+{{#if sorted}}
+<h1 class="title-chksum word-wrap">diff (sorted, -p1)</h1>
+{{else}}
+<h1 class="title-chksum word-wrap">diff (sorted)</h1>
+{{/if}}
+{{else}}
+<h1 class="title-chksum word-wrap">diff</h1>
+{{/if}}
+
+<a href="/artifact/{{diff_from}}">diff from</a> |
+<a href="/artifact/{{diff_to}}">diff to</a> |
+{{#if sorted}}
+{{#if trimmed}}
+<a href="/diff-sorted/{{diff_from}}/{{diff_to}}">untrimmed</a> |
+{{else}}
+<a href="/diff-sorted-trimmed/{{diff_from}}/{{diff_to}}">trimmed</a> |
+{{/if}}
+<a href="/diff/{{diff_from}}/{{diff_to}}">original</a>
+{{else}}
+<a href="/diff-sorted/{{diff_from}}/{{diff_to}}">sorted</a>
+{{/if}}
+
+<pre id="files">
+{{diff}}
+</pre>
+{{/inline}}
+
+{{> base.html.hbs }}

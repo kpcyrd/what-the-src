@@ -1,0 +1,7 @@
+{{#each this.files}}
+{{#if this.digest}}
+{{this.digest}}  {{this.path}}
+{{else}}
+                                                                         {{this.path}}
+{{/if}}
+{{/each}}

@@ -448,6 +448,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "diffy-fork-filenames"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1c5b171edb2919d109fe0b3c623f35f20046b14fb63f2ca069b450ae500246e"
+dependencies = [
+ "nu-ansi-term",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2972,6 +2981,7 @@ dependencies = [
  "autocompress",
  "blake2",
  "clap",
+ "diffy-fork-filenames",
  "digest",
  "dotenvy",
  "env_logger",
