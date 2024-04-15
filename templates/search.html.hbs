@@ -1,0 +1,33 @@
+{{#*inline "title"}}
+Search: {{search}} - What the src?!
+{{/inline}}
+
+{{#*inline "page"}}
+<h1 class="word-wrap">Search: {{search}}</h1>
+
+{{~#if refs}}
+<ul>
+{{#each refs}}
+<li class="word-wrap">
+<b>{{this.display_vendor}}:</b>
+{{#if this.href}}
+<a href="{{this.href}}">
+{{/if}}
+{{this.package}}
+{{this.version}}
+{{~#if this.href}}
+</a>
+{{/if}}
+{{#if this.filename}}
+({{this.filename}})
+{{/if}}
+<a href="/artifact/{{this.chksum}}">{{this.chksum}}</a>
+</li>
+{{/each}}
+</ul>
+{{else}}
+Nothing found, return to <a href="/">home page</a>.
+{{/if}}
+{{/inline}}
+
+{{> base.html.hbs }}

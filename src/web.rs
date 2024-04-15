@@ -4,6 +4,7 @@ use crate::errors::*;
 use handlebars::Handlebars;
 use log::error;
 use rust_embed::RustEmbed;
+use serde::Deserialize;
 use serde_json::json;
 use std::convert::Infallible;
 use std::result;
@@ -29,18 +30,7 @@ fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
 }
 
 async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let html = match hbs.render(
-        "index.html.hbs",
-        &json!({
-            "foo": "bar",
-        }),
-    ) {
-        Ok(html) => html,
-        Err(err) => {
-            error!("Failed to render template: {err:#}");
-            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
-        }
-    };
+    let html = hbs.render("index.html.hbs", &()).map_err(Error::from)?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
@@ -58,21 +48,44 @@ async fn artifact(
 
     let refs = db.get_all_refs(&artifact.chksum).await?;
 
-    let html = match hbs.render(
-        "artifact.html.hbs",
-        &json!({
-            "artifact": artifact,
-            "chksum": chksum,
-            "alias": alias,
-            "refs": refs,
-        }),
-    ) {
-        Ok(html) => html,
-        Err(err) => {
-            error!("Failed to render template: {err:#}");
-            return Ok(Box::new(StatusCode::INTERNAL_SERVER_ERROR));
-        }
-    };
+    let html = hbs
+        .render(
+            "artifact.html.hbs",
+            &json!({
+                "artifact": artifact,
+                "chksum": chksum,
+                "alias": alias,
+                "refs": refs,
+            }),
+        )
+        .map_err(Error::from)?;
+    Ok(Box::new(warp::reply::html(html)))
+}
+
+#[derive(Debug, Deserialize)]
+struct SearchQuery {
+    q: String,
+}
+
+async fn search(
+    hbs: Arc<Handlebars<'_>>,
+    db: Arc<db::Client>,
+    search: SearchQuery,
+) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let mut query = search.q.clone();
+    query.retain(|c| !"%_".contains(c));
+    query.push('%');
+
+    let refs = db.search(&query).await?;
+    let html = hbs
+        .render(
+            "search.html.hbs",
+            &json!({
+                "search": search.q,
+                "refs": refs,
+            }),
+        )
+        .map_err(Error::from)?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
@@ -109,13 +122,20 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and_then(index)
         .map(cache_control);
     let artifact = warp::get()
-        .and(hbs)
-        .and(db)
+        .and(hbs.clone())
+        .and(db.clone())
         .and(warp::path("artifact"))
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(artifact)
         .map(cache_control);
+    let search = warp::get()
+        .and(hbs)
+        .and(db)
+        .and(warp::path("search"))
+        .and(warp::path::end())
+        .and(warp::query::<SearchQuery>())
+        .and_then(search);
     let style = warp::get()
         .and(warp::path("assets"))
         .and(warp::path("style.css"))
@@ -124,7 +144,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .map(cache_control);
 
     let routes = warp::any()
-        .and(index.or(artifact).or(style))
+        .and(index.or(artifact).or(search).or(style))
         .recover(rejection);
 
     warp::serve(routes).run(args.bind_addr).await;
