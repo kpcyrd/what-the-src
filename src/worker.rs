@@ -7,6 +7,21 @@ use tokio::io;
 use tokio::time::{self, Duration};
 use tokio_util::io::StreamReader;
 
+fn normalize_archlinux_gitlab_names(package: &str) -> String {
+    let mut iter = package.chars();
+    let mut out = String::new();
+    while let Some(ch) = iter.next() {
+        if ch != '+' {
+            out.push(ch);
+        } else if iter.clone().any(|c| c != '+') {
+            out.push('-');
+        } else {
+            out.push_str("plus");
+        }
+    }
+    out
+}
+
 pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> Result<()> {
     let data = task.data()?;
 
@@ -43,7 +58,7 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             version,
             tag,
         } => {
-            let repo = package.replace('+', "plus");
+            let repo = normalize_archlinux_gitlab_names(&package);
             let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz");
 
             info!("Downloading pacman git snapshot: {url:?}");
@@ -135,5 +150,22 @@ pub async fn run(args: &args::Worker) -> Result<()> {
             time::sleep(Duration::from_secs(60)).await;
         }
         time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_mysqlplusplus() {
+        let repo = normalize_archlinux_gitlab_names("gtk2+extra");
+        assert_eq!(repo, "gtk2-extra");
+    }
+
+    #[test]
+    fn test_normalize_mysqlplusplu2s() {
+        let repo = normalize_archlinux_gitlab_names("mysql++");
+        assert_eq!(repo, "mysqlplusplus");
     }
 }
