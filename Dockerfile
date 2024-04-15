@@ -11,6 +11,8 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
 
 FROM alpine:3.19
 RUN apk add libgcc libpq libbz2 xz-libs
+# current rpm parser depends on /usr/bin/bsdtar
+RUN apk add libarchive-tools
 WORKDIR /app
 COPY --from=0 /what-the-src /
 USER nobody

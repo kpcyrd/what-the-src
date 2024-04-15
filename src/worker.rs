@@ -72,28 +72,43 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             version,
             url,
         } => {
-            let bytes = client
+            info!("Downloading source rpm: {url:?}");
+            let stream = client
                 .get(&url)
                 .send()
                 .await?
                 .error_for_status()?
-                .bytes()
-                .await?;
+                .bytes_stream();
 
-            // TODO
-            let _rpm = rpm::Package::parse(&mut &bytes[..])?;
-            let _ = vendor;
-            let _ = package;
-            let _ = version;
+            let reader =
+                StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
 
-            /*
+            let items = ingest::rpm::stream_data(
+                reader,
+                vendor.to_string(),
+                package.to_string(),
+                version.to_string(),
+            )
+            .await?;
+
+            for (r, inner_digests, outer_digests, files) in items {
+                info!("insert artifact: {:?}", inner_digests.sha256);
+                db.insert_artifact(&inner_digests.sha256, &files).await?;
+                db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
+                    .await?;
+                db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
+                    .await?;
+
+                info!("insert ref: {r:?}");
+                db.insert_ref(&r).await?;
+            }
+
             db.insert_package(&db::Package {
                 vendor,
                 package,
                 version,
             })
             .await?;
-            */
         }
     }
 

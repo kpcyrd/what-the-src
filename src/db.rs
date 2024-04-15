@@ -261,6 +261,10 @@ impl From<Ref> for RefView {
                 let href = format!("https://packages.debian.org/search?keywords={}", r.package);
                 (Cow::Borrowed("Debian"), Some(href))
             }
+            "fedora" => {
+                let href = format!("https://packages.fedoraproject.org/pkgs/{}/", r.package);
+                (Cow::Borrowed("Fedora"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 

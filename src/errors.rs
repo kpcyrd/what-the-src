@@ -24,6 +24,10 @@ pub enum Error {
     Srcinfo(#[from] srcinfo::Error),
     #[error(transparent)]
     Rpm(#[from] rpm::Error),
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("Child process has exited with error: {0}")]
+    ChildExit(std::process::ExitStatus),
     #[error("Parser encountered invalid data")]
     InvalidData,
     #[error("Parser encountered invalid PKGBUILD: {0}")]
