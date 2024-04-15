@@ -8,6 +8,10 @@ use tokio::time::{self, Duration};
 use tokio_util::io::StreamReader;
 
 fn normalize_archlinux_gitlab_names(package: &str) -> String {
+    if package == "tree" {
+        return "unix-tree".to_string();
+    }
+
     let mut iter = package.chars();
     let mut out = String::new();
     while let Some(ch) = iter.next() {
@@ -158,14 +162,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_normalize_mysqlplusplus() {
+    fn test_normalize_gtk2_extra() {
         let repo = normalize_archlinux_gitlab_names("gtk2+extra");
         assert_eq!(repo, "gtk2-extra");
     }
 
     #[test]
-    fn test_normalize_mysqlplusplu2s() {
+    fn test_normalize_mysqlplusplus() {
         let repo = normalize_archlinux_gitlab_names("mysql++");
         assert_eq!(repo, "mysqlplusplus");
+    }
+
+    #[test]
+    fn test_normalize_tree() {
+        let repo = normalize_archlinux_gitlab_names("tree");
+        assert_eq!(repo, "unix-tree");
     }
 }
