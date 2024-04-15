@@ -214,6 +214,24 @@ impl Client {
         .await?;
         Ok(result)
     }
+
+    pub async fn search(&self, package: &str) -> Result<Vec<RefView>> {
+        let mut result = sqlx::query_as::<_, Ref>(
+            "SELECT *
+            FROM refs
+            WHERE package LIKE $1
+            ORDER BY id DESC
+            LIMIT 150",
+        )
+        .bind(package)
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row.into());
+        }
+        Ok(rows)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

@@ -11,6 +11,8 @@ pub enum Error {
     #[error(transparent)]
     Migrate(#[from] sqlx::migrate::MigrateError),
     #[error(transparent)]
+    RenderError(#[from] handlebars::RenderError),
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Xml(#[from] serde_xml_rs::Error),
