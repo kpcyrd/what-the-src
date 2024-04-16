@@ -89,9 +89,13 @@ pub struct IngestRpm {
 pub struct SyncApt {
     #[arg(long)]
     pub vendor: String,
+    /// The release name to import, e.g. `sid`, `stable` or `stable-security`
     #[arg(long)]
-    pub fetch: bool,
-    pub file: String,
+    pub release: String,
+    /// The suite name to import, e.g. `main`, `contrib` or `non-free`
+    #[arg(long, default_value = "main")]
+    pub suite: String,
+    pub url: String,
 }
 
 /// Start an import of a software vendor (pacman)

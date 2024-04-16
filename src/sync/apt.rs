@@ -7,9 +7,14 @@ use async_compression::tokio::bufread::XzDecoder;
 use tokio::io::{self, AsyncReadExt};
 
 pub async fn run(args: &args::SyncApt) -> Result<()> {
+    let base_url = args.url.strip_suffix('/').unwrap_or(&args.url);
+    let release = &args.release;
+    let suite = &args.suite;
+
     let db = db::Client::create().await?;
 
-    let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
+    let url = format!("{base_url}/dists/{release}/{suite}/source/Sources.xz");
+    let reader = utils::fetch(&url).await?;
     let reader = io::BufReader::new(reader);
     let mut reader = XzDecoder::new(reader);
 
@@ -44,10 +49,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
 
                 if db.resolve_artifact(&obj.chksum).await?.is_none() {
                     let directory = pkg.directory.as_ref().unwrap();
-                    let url = format!(
-                        "https://ftp.halifax.rwth-aachen.de/debian/{}/{}",
-                        directory, name
-                    );
+                    let url = format!("{base_url}/{directory}/{name}");
                     info!("url={url:?}");
                     db.insert_task(&Task::new(
                         format!("fetch:{url}"),
