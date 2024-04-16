@@ -70,8 +70,16 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             let stream = resp.bytes_stream();
             let reader =
                 StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-            let refs =
+            let (refs, urls) =
                 ingest::pacman::stream_data(reader, &vendor, &package, &version, false).await?;
+
+            for url in urls {
+                db.insert_task(&Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar { url },
+                )?)
+                .await?;
+            }
 
             for r in refs {
                 info!("insert: {r:?}");

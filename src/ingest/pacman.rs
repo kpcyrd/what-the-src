@@ -1,5 +1,5 @@
 use crate::args;
-use crate::db;
+use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::pkgbuild;
 use crate::utils;
@@ -77,14 +77,9 @@ impl Snapshot {
 
             // Skip entries that we know for sure are not urls
             if let Some(url) = &url {
-                // TODO: download and ingest the file
-                match url.split_once("://") {
-                    Some(("https", _)) => {
-                        debug!("Detected url: {url:?}");
-                    }
-                    Some(_) => (),
-                    None => continue,
-                };
+                if !url.contains("://") {
+                    continue;
+                }
             }
 
             out.push(SourceEntry {
@@ -164,19 +159,34 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     package: &str,
     version: &str,
     prefer_pkgbuild: bool,
-) -> Result<Vec<db::Ref>> {
+) -> Result<(Vec<db::Ref>, Vec<String>)> {
     let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
     if prefer_pkgbuild {
         snapshot.srcinfo = None;
     }
     let entries = snapshot.source_entries()?;
 
-    let mut out = Vec::new();
+    let mut refs = Vec::new();
+    let mut urls = Vec::new();
     for entry in entries {
         debug!("Found source entry: {entry:?}");
         let Some(chksum) = entry.preferred_chksum() else {
             continue;
         };
+
+        if let Some(url) = &entry.url {
+            match url.split_once("://") {
+                Some(("https" | "http", _)) => {
+                    if url.contains(".tar") || url.ends_with(".crate") {
+                        urls.push(url.to_string());
+                    }
+                }
+                Some((schema, _)) if schema.starts_with("git+") => {
+                    debug!("Found git remote: {url:?}");
+                }
+                _ => (),
+            }
+        }
 
         let r = db::Ref {
             chksum,
@@ -185,17 +195,17 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             version: version.to_string(),
             filename: entry.url,
         };
-        out.push(r);
+        refs.push(r);
     }
 
-    Ok(out)
+    Ok((refs, urls))
 }
 
 pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     let db = db::Client::create().await?;
 
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
-    let refs = stream_data(
+    let (refs, urls) = stream_data(
         reader,
         &args.vendor,
         &args.package,
@@ -203,6 +213,14 @@ pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
         args.prefer_pkgbuild,
     )
     .await?;
+
+    for url in urls {
+        db.insert_task(&Task::new(
+            format!("fetch:{url}"),
+            &TaskData::FetchTar { url },
+        )?)
+        .await?;
+    }
 
     for r in refs {
         info!("insert: {r:?}");
