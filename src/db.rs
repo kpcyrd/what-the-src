@@ -70,11 +70,12 @@ impl Client {
         Ok(())
     }
 
-    pub async fn register_chksums_aliases(&self, outer: &Checksums, canonical: &str) -> Result<()> {
-        if outer.sha256 != canonical {
-            self.insert_alias_from_to(&outer.sha256, canonical).await?;
+    pub async fn register_chksums_aliases(&self, chksums: &Checksums, canonical: &str) -> Result<()> {
+        if chksums.sha256 != canonical {
+            self.insert_alias_from_to(&chksums.sha256, canonical).await?;
         }
-        self.insert_alias_from_to(&outer.sha512, canonical).await?;
+        self.insert_alias_from_to(&chksums.sha512, canonical).await?;
+        self.insert_alias_from_to(&chksums.blake2b, canonical).await?;
         Ok(())
     }
 
