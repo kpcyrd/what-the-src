@@ -11,6 +11,8 @@ use std::env;
 // keep track if we may need to reprocess an entry
 const DB_VERSION: i16 = 0;
 
+const RETRY_LIMIT: i16 = 5;
+
 #[derive(Debug)]
 pub struct Client {
     pool: Pool<Postgres>,
@@ -161,13 +163,29 @@ impl Client {
         Ok(())
     }
 
+    pub async fn bump_task_error_counter(&self, task: &Task, error: &str) -> Result<()> {
+        let _result = sqlx::query(
+            "UPDATE tasks
+            SET retries = retries + 1,
+            error = $2
+            WHERE id = $1",
+        )
+        .bind(task.id)
+        .bind(error)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_random_task(&self) -> Result<Option<Task>> {
         let result = sqlx::query_as(
             "SELECT *
                 FROM tasks
+                WHERE retries < $1
                 ORDER BY RANDOM()
                 LIMIT 1",
         )
+        .bind(RETRY_LIMIT)
         .fetch_optional(&self.pool)
         .await?;
         Ok(result)
@@ -329,12 +347,20 @@ pub struct Task {
     pub id: i64,
     pub key: String,
     pub data: serde_json::Value,
+    pub retries: i16,
+    pub error: Option<String>,
 }
 
 impl Task {
     pub fn new(key: String, data: &TaskData) -> Result<Self> {
         let data = serde_json::to_value(data)?;
-        Ok(Task { id: 0, key, data })
+        Ok(Task {
+            id: 0,
+            key,
+            data,
+            retries: 0,
+            error: None,
+        })
     }
 
     pub fn data(&self) -> Result<TaskData> {

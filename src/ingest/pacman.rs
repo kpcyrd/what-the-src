@@ -117,13 +117,7 @@ impl Snapshot {
                 b2sums,
             ))
         } else {
-            let pkgbuild = match pkgbuild::parse(self.pkgbuild.as_bytes()) {
-                Ok(pkgbuild) => pkgbuild,
-                Err(err) => {
-                    warn!("Skipping invalid PKGBUILD: {err:#}");
-                    return Ok(Vec::new());
-                }
-            };
+            let pkgbuild = pkgbuild::parse(self.pkgbuild.as_bytes())?;
 
             let max = [
                 pkgbuild.sha256sums.len(),

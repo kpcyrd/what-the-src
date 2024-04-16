@@ -147,6 +147,8 @@ pub async fn run(args: &args::Worker) -> Result<()> {
             info!("task={task:?}");
             if let Err(err) = do_task(&db, &client, &task).await {
                 error!("Failed to process task: {err:#}");
+                db.bump_task_error_counter(&task, &format!("{err:#}"))
+                    .await?;
             } else {
                 db.delete_task(&task).await?;
             }

@@ -1,0 +1,3 @@
+ALTER TABLE tasks
+DROP COLUMN retries,
+DROP COLUMN error;
