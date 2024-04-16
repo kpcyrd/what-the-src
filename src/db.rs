@@ -219,21 +219,43 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn search(&self, package: &str) -> Result<Vec<RefView>> {
+    pub async fn search(&self, search: &str, limit: usize) -> Result<Vec<RefView>> {
+        let exact = search.strip_suffix('%').unwrap_or(search);
+
+        // Search for exact matches first
         let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *
             FROM refs
-            WHERE package LIKE $1
+            WHERE package = $1
             ORDER BY id DESC
-            LIMIT 150",
+            LIMIT $2",
         )
-        .bind(package)
+        .bind(exact)
+        .bind(limit as i64)
         .fetch(&self.pool);
 
         let mut rows = Vec::new();
         while let Some(row) = result.try_next().await? {
             rows.push(row.into());
         }
+
+        // Fill remaining slots with prefix search
+        let mut result = sqlx::query_as::<_, Ref>(
+            "SELECT *
+            FROM refs
+            WHERE package LIKE $3 AND package != $1
+            ORDER BY id DESC
+            LIMIT $2",
+        )
+        .bind(exact)
+        .bind(limit as i64)
+        .bind(search)
+        .fetch(&self.pool);
+
+        while let Some(row) = result.try_next().await? {
+            rows.push(row.into());
+        }
+
         Ok(rows)
     }
 }

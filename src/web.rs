@@ -17,6 +17,8 @@ use warp::{
     Filter,
 };
 
+const SEARCH_LIMIT: usize = 150;
+
 #[derive(RustEmbed)]
 #[folder = "templates"]
 #[include = "*.hbs"]
@@ -85,7 +87,8 @@ async fn search(
     query.retain(|c| !"%_".contains(c));
     query.push('%');
 
-    let refs = db.search(&query).await?;
+    let refs = db.search(&query, SEARCH_LIMIT).await?;
+
     let html = hbs
         .render(
             "search.html.hbs",
