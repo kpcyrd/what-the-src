@@ -43,7 +43,7 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
         };
 
         // TODO: find a better solution for this
-        let compression = if filename.ends_with(".tar.gz") {
+        let compression = if filename.ends_with(".tar.gz") || filename.ends_with(".crate") {
             Some("gz")
         } else if filename.ends_with(".tar.xz") {
             Some("xz")
