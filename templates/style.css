@@ -28,6 +28,11 @@ main h2 {
     padding: 5px;
 }
 
+.warning {
+    background-color: orange;
+    padding: 5px;
+}
+
 #files {
     overflow-x: scroll;
 }

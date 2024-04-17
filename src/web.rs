@@ -8,6 +8,7 @@ use log::error;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::HashSet;
 use std::convert::Infallible;
 use std::result;
 use std::sync::Arc;
@@ -43,6 +44,33 @@ fn render_archive(hbs: &Handlebars, artifact: &db::Artifact) -> Result<String> {
     Ok(artifact)
 }
 
+fn detect_autotools(artifact: &db::Artifact) -> Result<bool> {
+    let Some(files) = &artifact.files else {
+        return Ok(false);
+    };
+    let files = serde_json::from_value::<Vec<ingest::tar::Entry>>(files.clone())?;
+
+    let mut configure = HashSet::new();
+    let mut configure_ac = HashSet::new();
+
+    for file in &files {
+        if let Some(folder) = file.path.strip_suffix("/configure") {
+            if configure_ac.contains(folder) {
+                return Ok(true);
+            }
+            configure.insert(folder);
+        }
+        if let Some(folder) = file.path.strip_suffix("/configure.ac") {
+            if configure.contains(folder) {
+                return Ok(true);
+            }
+            configure_ac.insert(folder);
+        }
+    }
+
+    Ok(false)
+}
+
 async fn artifact(
     hbs: Arc<Handlebars<'_>>,
     db: Arc<db::Client>,
@@ -56,8 +84,10 @@ async fn artifact(
     };
 
     let refs = db.get_all_refs(&artifact.chksum).await?;
-
     let files = render_archive(&hbs, &artifact)?;
+
+    let suspecting_autotools = detect_autotools(&artifact)?;
+
     let html = hbs
         .render(
             "artifact.html.hbs",
@@ -67,6 +97,7 @@ async fn artifact(
                 "alias": alias,
                 "refs": refs,
                 "files": files,
+                "suspecting_autotools": suspecting_autotools,
             }),
         )
         .map_err(Error::from)?;

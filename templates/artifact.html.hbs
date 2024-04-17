@@ -41,6 +41,15 @@ for alias
 </ul>
 {{/if}}
 
+{{#if suspecting_autotools}}
+<div class="warning word-wrap">
+<h3>Suspecting autotools pre-processing</h3>
+<p>This archive contains both <code>./configure</code> and <code>./configure.ac</code>, suggesting it was pre-processed with autotools and is not a pristine VCS snapshot.
+Source tarballs pre-processed with autotools contain machine generated shell scripts that are often thousands of lines long and notoriously difficult to review.
+Instead, the configure script should be generated on the build server during build so they don't bypass reproducible builds.</p>
+</div>
+{{/if}}
+
 {{#if files}}
 <h2>Content</h2>
 <pre id="files">
