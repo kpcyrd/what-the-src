@@ -55,7 +55,7 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
             let body = req.bytes().await?;
 
             // TODO: do this stuff on the fly
-            let compression = if url.ends_with(".gz") {
+            let compression = if url.ends_with(".gz") || url.ends_with(".tgz") {
                 Some("gz")
             } else if url.ends_with(".xz") {
                 Some("xz")
