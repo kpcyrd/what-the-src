@@ -31,6 +31,25 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
 
     match data {
         TaskData::FetchTar { url } => {
+            // After importing entire distros, this is the only software I struggle with.
+            // This clown browser:
+            //  - has >1 million source files
+            //    - 2.8x of Firefox
+            //    - 12x of the Linux kernel
+            //  - the compressed tarball is 3.5GB large
+            //    - 6x of Firefox
+            //    - 24x of the Linux kernel
+            //  - processing this makes my vps go OOM
+            //    - even though I already process the http response as a stream
+            //    - holding the xz state for decompression takes 2gb of ram
+            // I don't have time for this. Tech layoffs should've started sooner.
+            if url.starts_with(
+                "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-",
+            ) {
+                info!("Detected chromium, skipping 🤡: {url:?}");
+                return Ok(());
+            }
+
             info!("Fetching tar: {url:?}");
             let req = client.get(&url).send().await?.error_for_status()?;
             let body = req.bytes().await?;
