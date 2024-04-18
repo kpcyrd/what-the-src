@@ -9,11 +9,19 @@ what-the-src plumbing sync-pacman --vendor archlinux --fetch https://github.com/
 ### Sync Debian sid
 
 ```
-what-the-src plumbing sync-apt --vendor debian --fetch http://deb.debian.org/debian/dists/sid/main/source/Sources.xz
+what-the-src plumbing sync-apt --vendor debian http://deb.debian.org/debian/ --release sid
+what-the-src plumbing sync-apt --vendor debian https://security.debian.org/debian-security/ --release stable-security
 ```
 
 ### Sync Fedora rawhide
 
 ```
-what-the-src plumbing sync-rpm --vendor fedora --fetch https://ftp.halifax.rwth-aachen.de/fedora/linux/development/rawhide/Everything/source/tree/
+what-the-src plumbing sync-rpm --vendor fedora https://ftp.halifax.rwth-aachen.de/fedora/linux/development/rawhide/Everything/source/tree/
+```
+
+### Sync Alpine
+
+```
+what-the-src plumbing sync-alpine --vendor alpine --fetch https://ftp.halifax.rwth-aachen.de/alpine/edge/main/x86_64/APKINDEX.tar.gz --repo main
+what-the-src plumbing sync-alpine --vendor alpine --fetch https://ftp.halifax.rwth-aachen.de/alpine/edge/community/x86_64/APKINDEX.tar.gz --repo community
 ```
