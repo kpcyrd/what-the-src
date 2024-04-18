@@ -40,6 +40,7 @@ pub enum Plumbing {
     Ingest(Ingest),
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     IngestRpm(IngestRpm),
+    SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
     SyncRpm(SyncRpm),
@@ -79,6 +80,18 @@ pub struct IngestRpm {
     pub package: String,
     #[arg(long)]
     pub version: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (alpine)
+#[derive(Debug, Parser)]
+pub struct SyncAlpine {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub repo: String,
     #[arg(long)]
     pub fetch: bool,
     pub file: String,

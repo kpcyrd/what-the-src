@@ -177,7 +177,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         if let Some(url) = &entry.url {
             match url.split_once("://") {
                 Some(("https" | "http", _)) => {
-                    if url.contains(".tar") || url.ends_with(".crate") {
+                    if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
                         urls.push(url.to_string());
                     }
                 }

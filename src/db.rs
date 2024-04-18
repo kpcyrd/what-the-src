@@ -335,6 +335,10 @@ impl From<Ref> for RefView {
                 let href = format!("https://packages.fedoraproject.org/pkgs/{}/", r.package);
                 (Cow::Borrowed("Fedora"), Some(href))
             }
+            "alpine" => {
+                let href = format!("https://pkgs.alpinelinux.org/packages?name={}", r.package);
+                (Cow::Borrowed("Alpine"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
@@ -393,6 +397,13 @@ pub enum TaskData {
         package: String,
         version: String,
         url: String,
+    },
+    AlpineGitApkbuild {
+        vendor: String,
+        repo: String,
+        origin: String,
+        version: String,
+        commit: String,
     },
 }
 
