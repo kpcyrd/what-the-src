@@ -1,3 +1,4 @@
+use crate::apkbuild;
 use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
@@ -153,6 +154,63 @@ pub async fn do_task(db: &db::Client, client: &reqwest::Client, task: &Task) -> 
                 vendor,
                 package,
                 version,
+            })
+            .await?;
+        }
+        TaskData::AlpineGitApkbuild {
+            vendor,
+            repo,
+            origin,
+            version,
+            commit,
+        } => {
+            let url = format!("https://gitlab.alpinelinux.org/alpine/aports/-/raw/{commit}/{repo}/{origin}/APKBUILD");
+            info!("Fetching APKBUILD: {url:?}");
+            let req = client.get(&url).send().await?.error_for_status()?;
+            let body = req.text().await?;
+
+            info!("Parsing APKBUILD");
+            let apkbuild = apkbuild::parse(&body)?;
+
+            for i in 0..apkbuild.source.len() {
+                let Some(url) = apkbuild.source.get(i) else {
+                    continue;
+                };
+                let Some(sha512) = apkbuild.sha512sums.get(i) else {
+                    continue;
+                };
+
+                if !url.starts_with("https://") && !url.starts_with("http://") {
+                    continue;
+                }
+
+                if !url.contains(".tar") && !url.ends_with(".crate") && !url.ends_with(".tgz") {
+                    continue;
+                }
+
+                db.insert_task(&Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                    },
+                )?)
+                .await?;
+
+                let r = db::Ref {
+                    chksum: format!("sha512:{sha512}"),
+                    vendor: vendor.to_string(),
+                    package: origin.to_string(),
+                    version: version.to_string(),
+                    filename: Some(url.to_string()),
+                };
+                info!("insert: {r:?}");
+                db.insert_ref(&r).await?;
+            }
+
+            db.insert_package(&db::Package {
+                vendor,
+                package: origin,
+                version: commit,
             })
             .await?;
         }

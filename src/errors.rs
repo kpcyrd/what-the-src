@@ -32,6 +32,8 @@ pub enum Error {
     ChildExit(std::process::ExitStatus),
     #[error("Parser encountered invalid data")]
     InvalidData,
+    #[error("Parser encountered unknown variable: ${0}")]
+    UnknownVariable(String),
     #[error("Parser encountered invalid PKGBUILD: {0}")]
     InvalidPkgbuild(String),
     #[error("Rpm is missing a `primary` data entry")]

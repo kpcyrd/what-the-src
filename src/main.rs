@@ -1,4 +1,5 @@
 pub mod alias;
+pub mod apkbuild;
 pub mod apt;
 pub mod args;
 pub mod chksums;
@@ -39,6 +40,7 @@ async fn main() -> Result<()> {
             ingest::pacman::run(&args).await
         }
         SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncRpm(args)) => sync::rpm::run(&args).await,
