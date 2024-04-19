@@ -1,12 +1,15 @@
 use crate::errors::*;
+use std::collections::HashMap;
 use yash_syntax::syntax::{self, Unquote, Value};
+
+/// Variables we keep track of for interpolation but nothing else
+const TRACKED_VARIABLES: &[&str] = &["_pkgname", "_pkgver", "_gitrev", "_commit", "url"];
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Apkbuild {
     pub pkgname: Option<String>,
     pub pkgver: Option<String>,
-    pub _pkgver: Option<String>,
-    pub url: Option<String>,
+    pub extra: HashMap<&'static str, String>,
 
     pub source: Vec<String>,
     pub sha512sums: Vec<String>,
@@ -19,11 +22,11 @@ impl Apkbuild {
         'outer: while !text.is_empty() {
             if let Some((before, after)) = text.split_once('$') {
                 let vars = [
-                    ("pkgname", &self.pkgname),
-                    ("pkgver", &self.pkgver),
-                    ("_pkgver", &self._pkgver),
-                    ("url", &self.url),
-                ];
+                    ("pkgname", self.pkgname.as_ref()),
+                    ("pkgver", self.pkgver.as_ref()),
+                ]
+                .into_iter()
+                .chain(self.extra.iter().map(|(key, value)| (*key, Some(value))));
 
                 out.push_str(before);
                 for (name, value) in vars {
@@ -45,6 +48,10 @@ impl Apkbuild {
         }
 
         Ok(out)
+    }
+
+    pub fn register_var(&mut self, key: &'static str, value: String) {
+        self.extra.insert(key, value);
     }
 }
 
@@ -79,12 +86,6 @@ pub fn parse(script: &str) -> Result<Apkbuild> {
                     "pkgver" => {
                         apkbuild.pkgver = Some(value?);
                     }
-                    "_pkgver" => {
-                        apkbuild._pkgver = Some(value?);
-                    }
-                    "url" => {
-                        apkbuild.url = Some(value?);
-                    }
                     "source" => {
                         apkbuild.source = value?
                             .trim()
@@ -102,7 +103,11 @@ pub fn parse(script: &str) -> Result<Apkbuild> {
                             .map(String::from)
                             .collect();
                     }
-                    _ => (),
+                    _ => {
+                        if let Some(name) = TRACKED_VARIABLES.iter().find(|x| **x == name) {
+                            apkbuild.register_var(name, value?);
+                        }
+                    }
                 }
             }
         }
@@ -123,7 +128,7 @@ mod tests {
     fn test_parse_cmatrix() {
         init();
 
-        let data = br#"# Contributor: alpterry <alpterry@protonmail.com>
+        let data = r#"# Contributor: alpterry <alpterry@protonmail.com>
 # Maintainer: alpterry <alpterry@protonmail.com>
 pkgname=cmatrix
 pkgver=2.0
@@ -163,7 +168,9 @@ sha512sums="1aeecd8e8abb6f87fc54f88a8c25478f69d42d450af782e73c0fca7f051669a415c0
         assert_eq!(apkbuild, Apkbuild {
             pkgname: Some("cmatrix".to_string()),
             pkgver: Some("2.0".to_string()),
-            url: Some("https://github.com/abishekvashok/cmatrix".to_string()),
+            extra: [
+                ("url", "https://github.com/abishekvashok/cmatrix".to_string()),
+            ].into_iter().collect(),
 
             source: vec![
                 "https://github.com/abishekvashok/cmatrix/archive/v2.0.tar.gz".to_string(),
@@ -178,7 +185,7 @@ sha512sums="1aeecd8e8abb6f87fc54f88a8c25478f69d42d450af782e73c0fca7f051669a415c0
     fn test_parse_7zip() {
         init();
 
-        let data = br#"# Maintainer: Alex Xu (Hello71) <alex_y_xu@yahoo.ca>
+        let data = r#"# Maintainer: Alex Xu (Hello71) <alex_y_xu@yahoo.ca>
 pkgname=7zip
 pkgver=23.01
 #_pkgver=${pkgver//./} # Can't parse this and don't support _pkgver
@@ -242,10 +249,13 @@ c652a87ad95f61901820adb61f3d1ceacedcb8aeaf9e89b2b728b7372eff67d9669eb363d5b2d2fb
             Apkbuild {
                 pkgname: Some("7zip".to_string()),
                 pkgver: Some("23.01".to_string()),
-                url: Some("https://7-zip.org/".to_string()),
+                extra: [
+                    ("_pkgver", "2301".to_string()),
+                    ("url", "https://7-zip.org/".to_string()),
+                ].into_iter().collect(),
 
                 source: vec![
-                    "https://7-zip.org/a/7z23.01-src.tar.xz".to_string(),
+                    "https://7-zip.org/a/7z2301-src.tar.xz".to_string(),
                     "armv7.patch".to_string(),
                     "7-zip-flags.patch".to_string(),
                     "7-zip-musl.patch".to_string()
