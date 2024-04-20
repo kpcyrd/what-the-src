@@ -1,4 +1,6 @@
+use crate::git;
 pub use log::{debug, error, info, trace, warn};
+use std::process::ExitStatus;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -38,6 +40,16 @@ pub enum Error {
     InvalidPkgbuild(String),
     #[error("Rpm is missing a `primary` data entry")]
     RpmMissingPrimary,
+    #[error("Unknown git reference string: {0:?}")]
+    UnknownGitRef(String),
+    #[error("Invalid git reference: {0:?}")]
+    InvalidGitRef(git::GitUrl),
+    #[error("Error in git operation")]
+    GitError(ExitStatus),
+    #[error("Timeout of git fetch operation")]
+    GitFetchTimeout,
+    #[error("Error in git fetch operation")]
+    GitFetchError(ExitStatus),
 }
 
 // TODO: consider fixing this

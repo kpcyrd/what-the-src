@@ -1,3 +1,4 @@
+use crate::git;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
 
@@ -45,6 +46,7 @@ pub enum Plumbing {
     SyncPacman(SyncPacman),
     SyncRpm(SyncRpm),
     AddRef(AddRef),
+    GitArchive(GitArchive),
 }
 
 /// Ingest a .tar into the archive
@@ -143,4 +145,14 @@ pub struct AddRef {
     pub version: String,
     #[arg(long)]
     pub filename: Option<String>,
+}
+
+/// Create a `git archive` of a git ref
+#[derive(Debug, Parser)]
+pub struct GitArchive {
+    /// The directory to clone into
+    #[arg(long)]
+    pub tmp: String,
+    /// The url to clone from, including tag information
+    pub git: git::GitUrl,
 }
