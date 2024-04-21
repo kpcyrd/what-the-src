@@ -405,6 +405,9 @@ pub enum TaskData {
         version: String,
         commit: String,
     },
+    GitSnapshot {
+        url: String,
+    },
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

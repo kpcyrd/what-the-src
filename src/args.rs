@@ -34,6 +34,9 @@ pub struct Worker {
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
+    /// Path to use for temporary git clone operations
+    #[arg(long, env = "WHATSRC_GIT_TMP")]
+    pub git_tmp: String,
 }
 
 #[derive(Debug, Subcommand)]

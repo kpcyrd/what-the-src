@@ -1,4 +1,5 @@
 use crate::args;
+use crate::chksums::Checksums;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
@@ -48,25 +49,26 @@ impl FromStr for GitUrl {
     }
 }
 
-pub async fn run(args: &args::GitArchive) -> Result<()> {
-    let db = db::Client::create().await?;
-
-    fs::create_dir_all(&args.tmp).await?;
-    let dir = fs::File::open(&args.tmp).await?;
+pub async fn take_snapshot(
+    git: &GitUrl,
+    tmp: &str,
+) -> Result<(Checksums, Vec<ingest::tar::Entry>)> {
+    fs::create_dir_all(tmp).await?;
+    let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
     let mut lock = RwLock::new(dir.into_std().await);
     let _lock = lock.write();
     debug!("Acquired lock");
 
-    let reference = if let Some(tag) = &args.git.tag {
+    let reference = if let Some(tag) = &git.tag {
         tag
-    } else if let Some(commit) = &args.git.commit {
+    } else if let Some(commit) = &git.commit {
         commit
     } else {
-        return Err(Error::InvalidGitRef(args.git.clone()));
+        return Err(Error::InvalidGitRef(git.clone()));
     };
 
-    let path = format!("{}/git", args.tmp.strip_suffix('/').unwrap_or(&args.tmp));
+    let path = format!("{}/git", tmp.strip_suffix('/').unwrap_or(tmp));
     if fs::metadata(&path).await.is_ok() {
         debug!("Running cleanup of temporary git repository");
         fs::remove_dir_all(&path).await?;
@@ -83,7 +85,7 @@ pub async fn run(args: &args::GitArchive) -> Result<()> {
     }
 
     let status = process::Command::new("git")
-        .args(["-C", &path, "remote", "add", "origin", &args.git.url])
+        .args(["-C", &path, "remote", "add", "origin", &git.url])
         .status()
         .await?;
     if !status.success() {
@@ -119,6 +121,14 @@ pub async fn run(args: &args::GitArchive) -> Result<()> {
     let stdout = child.stdout.take().unwrap();
 
     let (chksums, _chksums, files) = ingest::tar::stream_data(stdout, None).await?;
+
+    Ok((chksums, files))
+}
+
+pub async fn run(args: &args::GitArchive) -> Result<()> {
+    let db = db::Client::create().await?;
+
+    let (chksums, files) = take_snapshot(&args.git, &args.tmp).await?;
     info!("digests={chksums:?}");
 
     db.insert_artifact(&chksums.sha256, &files).await?;
