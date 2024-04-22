@@ -153,6 +153,35 @@ impl SourceEntry {
     }
 }
 
+pub fn task_for_url(url: &str) -> Option<Task> {
+    match url.split_once("://") {
+        Some(("https" | "http", _)) => {
+            if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
+                Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                    },
+                )
+                .ok()
+            } else {
+                None
+            }
+        }
+        Some((schema, _)) if schema.starts_with("git+") => {
+            debug!("Found git remote: {url:?}");
+            Task::new(
+                format!("git-clone:{url}"),
+                &TaskData::GitSnapshot {
+                    url: url.to_string(),
+                },
+            )
+            .ok()
+        }
+        _ => None,
+    }
+}
+
 pub async fn stream_data<R: AsyncRead + Unpin>(
     reader: R,
     vendor: &str,
@@ -175,27 +204,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         };
 
         if let Some(url) = &entry.url {
-            match url.split_once("://") {
-                Some(("https" | "http", _)) => {
-                    if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
-                        tasks.push(Task::new(
-                            format!("fetch:{url}"),
-                            &TaskData::FetchTar {
-                                url: url.to_string(),
-                            },
-                        )?);
-                    }
-                }
-                Some((schema, _)) if schema.starts_with("git+") => {
-                    debug!("Found git remote: {url:?}");
-                    tasks.push(Task::new(
-                        format!("git-clone:{url}"),
-                        &TaskData::GitSnapshot {
-                            url: url.to_string(),
-                        },
-                    )?);
-                }
-                _ => (),
+            if let Some(task) = task_for_url(&url) {
+                tasks.push(task);
             }
         }
 

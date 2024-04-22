@@ -50,6 +50,7 @@ pub enum Plumbing {
     SyncRpm(SyncRpm),
     AddRef(AddRef),
     GitArchive(GitArchive),
+    Reindex(Reindex),
 }
 
 /// Ingest a .tar into the archive
@@ -158,4 +159,12 @@ pub struct GitArchive {
     pub tmp: String,
     /// The url to clone from, including tag information
     pub git: git::GitUrl,
+}
+
+/// Requeue all known urls
+#[derive(Debug, Parser)]
+pub struct Reindex {
+    /// Only queue urls containing this string
+    #[arg(long)]
+    pub filter: Option<String>,
 }
