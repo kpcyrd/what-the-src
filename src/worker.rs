@@ -102,16 +102,11 @@ impl Worker {
                 let stream = resp.bytes_stream();
                 let reader =
                     StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-                let (refs, urls) =
+                let (refs, tasks) =
                     ingest::pacman::stream_data(reader, &vendor, &package, &version, false).await?;
 
-                for url in urls {
-                    self.db
-                        .insert_task(&Task::new(
-                            format!("fetch:{url}"),
-                            &TaskData::FetchTar { url },
-                        )?)
-                        .await?;
+                for task in tasks {
+                    self.db.insert_task(&task).await?;
                 }
 
                 for r in refs {

@@ -92,7 +92,10 @@ pub async fn take_snapshot(
         return Err(Error::GitError(status));
     }
 
-    info!("Fetching git VCS tree-ish reference: {reference:?}");
+    info!(
+        "Fetching git VCS tree-ish reference from {:?}: {:?}",
+        git.url, reference
+    );
     let child = process::Command::new("git")
         .args(["-C", &path, "fetch", "origin", &reference])
         .status();
@@ -104,7 +107,7 @@ pub async fn take_snapshot(
         return Err(Error::GitFetchError(status));
     }
 
-    info!("Taking `git archive` snapshot: {reference:?}");
+    info!("Taking `git archive` snapshot of FETCH_HEAD");
     let mut child = process::Command::new("git")
         .args([
             "-C",
@@ -114,13 +117,18 @@ pub async fn take_snapshot(
             "archive",
             "--format",
             "tar",
-            &reference,
+            "FETCH_HEAD",
         ])
         .stdout(Stdio::piped())
         .spawn()?;
-    let stdout = child.stdout.take().unwrap();
 
+    let stdout = child.stdout.take().unwrap();
     let (chksums, _chksums, files) = ingest::tar::stream_data(stdout, None).await?;
+
+    let status = child.wait().await?;
+    if !status.success() {
+        return Err(Error::GitFetchError(status));
+    }
 
     Ok((chksums, files))
 }
