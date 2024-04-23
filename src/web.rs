@@ -96,32 +96,46 @@ async fn artifact(
     db: Arc<db::Client>,
     chksum: String,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let (chksum, json) = chksum
+        .strip_suffix(".json")
+        .map(|chksum| (chksum, true))
+        .unwrap_or((chksum.as_str(), false));
+
     let alias = db.get_artifact_alias(&chksum).await?;
 
-    let resolved_chksum = alias.as_ref().map(|a| &a.alias_to).unwrap_or(&chksum);
+    let resolved_chksum = alias
+        .as_ref()
+        .map(|a| a.alias_to.as_str())
+        .unwrap_or(chksum);
     let Some(artifact) = db.get_artifact(resolved_chksum).await? else {
         return Err(reject::not_found());
     };
 
-    let refs = db.get_all_refs_for(&artifact.chksum).await?;
-    let files = hbs.render_archive(&artifact)?;
+    if json {
+        Ok(Box::new(warp::reply::json(&json!({
+            "files": artifact.files,
+        }))))
+    } else {
+        let refs = db.get_all_refs_for(&artifact.chksum).await?;
+        let files = hbs.render_archive(&artifact)?;
 
-    let suspecting_autotools = detect_autotools(&artifact)?;
+        let suspecting_autotools = detect_autotools(&artifact)?;
 
-    let html = hbs
-        .render(
-            "artifact.html.hbs",
-            &json!({
-                "artifact": artifact,
-                "chksum": chksum,
-                "alias": alias,
-                "refs": refs,
-                "files": files,
-                "suspecting_autotools": suspecting_autotools,
-            }),
-        )
-        .map_err(Error::from)?;
-    Ok(Box::new(warp::reply::html(html)))
+        let html = hbs
+            .render(
+                "artifact.html.hbs",
+                &json!({
+                    "artifact": artifact,
+                    "chksum": chksum,
+                    "alias": alias,
+                    "refs": refs,
+                    "files": files,
+                    "suspecting_autotools": suspecting_autotools,
+                }),
+            )
+            .map_err(Error::from)?;
+        Ok(Box::new(warp::reply::html(html)))
+    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -13,7 +13,9 @@ use tokio_tar::{Archive, EntryType};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub digest: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links_to: Option<LinksTo>,
 }
 
