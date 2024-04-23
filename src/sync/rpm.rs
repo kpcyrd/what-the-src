@@ -1,10 +1,10 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
-use async_compression::tokio::bufread::GzipDecoder;
+use async_compression::tokio::bufread::{GzipDecoder, ZstdDecoder};
 use futures::TryStreamExt;
 use serde::Deserialize;
-use tokio::io::{self, AsyncReadExt};
+use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_util::io::StreamReader;
 
 #[derive(Debug, PartialEq, Deserialize)]
@@ -91,7 +91,7 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
     let url = format!("{base_url}/{}", repomd.find_primary_location()?);
     info!("Downloading url: {url:?}");
     let stream = client
-        .get(url)
+        .get(&url)
         .send()
         .await?
         .error_for_status()?
@@ -99,7 +99,11 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
 
     let reader = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
     let reader = io::BufReader::new(reader);
-    let mut reader = GzipDecoder::new(reader);
+    let mut reader: Box<dyn AsyncRead + Unpin> = if url.ends_with(".zst") {
+        Box::new(ZstdDecoder::new(reader))
+    } else {
+        Box::new(GzipDecoder::new(reader))
+    };
 
     let mut buf = String::new();
     reader.read_to_string(&mut buf).await?;

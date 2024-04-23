@@ -122,6 +122,8 @@ dependencies = [
  "pin-project-lite",
  "tokio",
  "xz2",
+ "zstd",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -171,20 +173,6 @@ name = "autocfg"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1fdabc7756949593fe60f30ec81974b613357de856987752631dea1e3394c80"
-
-[[package]]
-name = "autocompress"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "718907d13584a4f7417eb14fe8edd992250e75719dc9c8823d08b858dcc657e6"
-dependencies = [
- "bzip2",
- "flate2",
- "once_cell",
- "thiserror",
- "tokio",
- "xz2",
-]
 
 [[package]]
 name = "backtrace"
@@ -3013,7 +3001,6 @@ dependencies = [
  "apt-parser",
  "async-compression",
  "async-stream",
- "autocompress",
  "blake2",
  "clap",
  "diffy-fork-filenames",

@@ -353,6 +353,10 @@ impl From<Ref> for RefView {
                 let href = format!("https://pkgs.alpinelinux.org/packages?name={}", r.package);
                 (Cow::Borrowed("Alpine"), Some(href))
             }
+            "opensuse" => {
+                let href = format!("https://packagehub.suse.com/packages/{}/", r.package);
+                (Cow::Borrowed("OpenSUSE"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 

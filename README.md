@@ -25,3 +25,9 @@ what-the-src plumbing sync-rpm --vendor fedora https://ftp.halifax.rwth-aachen.d
 what-the-src plumbing sync-alpine --vendor alpine --fetch https://ftp.halifax.rwth-aachen.de/alpine/edge/main/x86_64/APKINDEX.tar.gz --repo main
 what-the-src plumbing sync-alpine --vendor alpine --fetch https://ftp.halifax.rwth-aachen.de/alpine/edge/community/x86_64/APKINDEX.tar.gz --repo community
 ```
+
+### Sync OpenSUSE
+
+```
+what-the-src plumbing sync-rpm --vendor opensuse https://ftp.halifax.rwth-aachen.de/opensuse/tumbleweed/repo/src-oss/
+```

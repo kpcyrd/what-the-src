@@ -101,7 +101,7 @@ async fn artifact(
         .map(|chksum| (chksum, true))
         .unwrap_or((chksum.as_str(), false));
 
-    let alias = db.get_artifact_alias(&chksum).await?;
+    let alias = db.get_artifact_alias(chksum).await?;
 
     let resolved_chksum = alias
         .as_ref()
