@@ -1,3 +1,4 @@
+use crate::git;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
 
@@ -33,6 +34,9 @@ pub struct Worker {
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
+    /// Path to use for temporary git clone operations
+    #[arg(long, env = "WHATSRC_GIT_TMP")]
+    pub git_tmp: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -45,6 +49,8 @@ pub enum Plumbing {
     SyncPacman(SyncPacman),
     SyncRpm(SyncRpm),
     AddRef(AddRef),
+    GitArchive(GitArchive),
+    Reindex(Reindex),
 }
 
 /// Ingest a .tar into the archive
@@ -143,4 +149,22 @@ pub struct AddRef {
     pub version: String,
     #[arg(long)]
     pub filename: Option<String>,
+}
+
+/// Create a `git archive` of a git ref
+#[derive(Debug, Parser)]
+pub struct GitArchive {
+    /// The directory to clone into
+    #[arg(long)]
+    pub tmp: String,
+    /// The url to clone from, including tag information
+    pub git: git::GitUrl,
+}
+
+/// Requeue all known urls
+#[derive(Debug, Parser)]
+pub struct Reindex {
+    /// Only queue urls containing this string
+    #[arg(long)]
+    pub filter: Option<String>,
 }

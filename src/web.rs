@@ -83,7 +83,7 @@ async fn artifact(
         return Err(reject::not_found());
     };
 
-    let refs = db.get_all_refs(&artifact.chksum).await?;
+    let refs = db.get_all_refs_for(&artifact.chksum).await?;
     let files = render_archive(&hbs, &artifact)?;
 
     let suspecting_autotools = detect_autotools(&artifact)?;

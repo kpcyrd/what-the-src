@@ -132,7 +132,7 @@ impl Client {
         Ok(())
     }
 
-    pub async fn get_all_refs(&self, chksum: &str) -> Result<Vec<RefView>> {
+    pub async fn get_all_refs_for(&self, chksum: &str) -> Result<Vec<RefView>> {
         let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *
             FROM (
@@ -154,6 +154,20 @@ impl Client {
         let mut rows = Vec::new();
         while let Some(row) = result.try_next().await? {
             rows.push(row.into());
+        }
+        Ok(rows)
+    }
+
+    pub async fn get_all_refs(&self) -> Result<Vec<Ref>> {
+        let mut result = sqlx::query_as(
+            "SELECT *
+            FROM refs",
+        )
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
         }
         Ok(rows)
     }
@@ -404,6 +418,9 @@ pub enum TaskData {
         origin: String,
         version: String,
         commit: String,
+    },
+    GitSnapshot {
+        url: String,
     },
 }
 

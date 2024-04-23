@@ -153,13 +153,42 @@ impl SourceEntry {
     }
 }
 
+pub fn task_for_url(url: &str) -> Option<Task> {
+    match url.split_once("://") {
+        Some(("https" | "http", _)) => {
+            if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
+                Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                    },
+                )
+                .ok()
+            } else {
+                None
+            }
+        }
+        Some((schema, _)) if schema.starts_with("git+") => {
+            debug!("Found git remote: {url:?}");
+            Task::new(
+                format!("git-clone:{url}"),
+                &TaskData::GitSnapshot {
+                    url: url.to_string(),
+                },
+            )
+            .ok()
+        }
+        _ => None,
+    }
+}
+
 pub async fn stream_data<R: AsyncRead + Unpin>(
     reader: R,
     vendor: &str,
     package: &str,
     version: &str,
     prefer_pkgbuild: bool,
-) -> Result<(Vec<db::Ref>, Vec<String>)> {
+) -> Result<(Vec<db::Ref>, Vec<Task>)> {
     let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
     if prefer_pkgbuild {
         snapshot.srcinfo = None;
@@ -167,7 +196,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let entries = snapshot.source_entries()?;
 
     let mut refs = Vec::new();
-    let mut urls = Vec::new();
+    let mut tasks = Vec::new();
     for entry in entries {
         debug!("Found source entry: {entry:?}");
         let Some(chksum) = entry.preferred_chksum() else {
@@ -175,16 +204,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         };
 
         if let Some(url) = &entry.url {
-            match url.split_once("://") {
-                Some(("https" | "http", _)) => {
-                    if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
-                        urls.push(url.to_string());
-                    }
-                }
-                Some((schema, _)) if schema.starts_with("git+") => {
-                    debug!("Found git remote: {url:?}");
-                }
-                _ => (),
+            if let Some(task) = task_for_url(&url) {
+                tasks.push(task);
             }
         }
 
@@ -198,14 +219,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         refs.push(r);
     }
 
-    Ok((refs, urls))
+    Ok((refs, tasks))
 }
 
 pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     let db = db::Client::create().await?;
 
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
-    let (refs, urls) = stream_data(
+    let (refs, tasks) = stream_data(
         reader,
         &args.vendor,
         &args.package,
@@ -214,12 +235,8 @@ pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     )
     .await?;
 
-    for url in urls {
-        db.insert_task(&Task::new(
-            format!("fetch:{url}"),
-            &TaskData::FetchTar { url },
-        )?)
-        .await?;
+    for task in tasks {
+        db.insert_task(&task).await?;
     }
 
     for r in refs {
