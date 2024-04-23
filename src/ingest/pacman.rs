@@ -204,7 +204,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         };
 
         if let Some(url) = &entry.url {
-            if let Some(task) = task_for_url(&url) {
+            if let Some(task) = task_for_url(url) {
                 tasks.push(task);
             }
         }

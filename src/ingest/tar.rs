@@ -14,6 +14,14 @@ use tokio_tar::{Archive, EntryType};
 pub struct Entry {
     pub path: String,
     pub digest: Option<String>,
+    pub links_to: Option<LinksTo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LinksTo {
+    Hard(String),
+    Symbolic(String),
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
@@ -38,16 +46,30 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         let mut entries = tar.entries()?;
         while let Some(entry) = entries.next().await {
             let mut entry = entry?;
-            let (path, is_file) = {
+            let (path, is_file, links_to) = {
                 let header = entry.header();
-                let is_file = match header.entry_type() {
+                let (is_file, links_to) = match header.entry_type() {
                     EntryType::XGlobalHeader => continue,
-                    EntryType::Regular => true,
-                    _ => false,
+                    EntryType::Regular => (true, None),
+                    EntryType::Symlink => {
+                        let link = entry.link_name()?.map(|path| {
+                            let path = path.to_string_lossy();
+                            LinksTo::Symbolic(path.into_owned())
+                        });
+                        (false, link)
+                    }
+                    EntryType::Link => {
+                        let link = entry.link_name()?.map(|path| {
+                            let path = path.to_string_lossy();
+                            LinksTo::Hard(path.into_owned())
+                        });
+                        (false, link)
+                    }
+                    _ => (false, None),
                 };
                 let path = header.path()?;
                 let path = path.to_string_lossy();
-                (path.into_owned(), is_file)
+                (path.into_owned(), is_file, links_to)
             };
 
             let digest = if is_file {
@@ -67,13 +89,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                 None
             };
 
-            if let Some(digest) = &digest {
-                debug!("Found entry={path:?}, digest={digest:?}");
-            } else {
-                debug!("Found entry={path:?}");
-            }
+            let entry = Entry {
+                path,
+                digest,
+                links_to,
+            };
+            debug!("Found entry={entry:?}");
 
-            files.push(Entry { path, digest });
+            files.push(entry);
         }
     }
     let Ok(mut reader) = tar.into_inner() else {

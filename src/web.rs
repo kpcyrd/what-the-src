@@ -3,7 +3,6 @@ use crate::db;
 use crate::errors::*;
 use crate::ingest;
 use diffy_fork_filenames as diffy;
-use handlebars::Handlebars;
 use log::error;
 use rust_embed::RustEmbed;
 use serde::Deserialize;
@@ -26,6 +25,32 @@ const SEARCH_LIMIT: usize = 150;
 #[include = "*.css"]
 struct Assets;
 
+struct Handlebars<'a> {
+    hbs: handlebars::Handlebars<'a>,
+}
+
+impl<'a> Handlebars<'a> {
+    fn new() -> Result<Handlebars<'a>> {
+        let mut hbs = handlebars::Handlebars::new();
+        hbs.set_prevent_indent(true);
+        hbs.register_embed_templates::<Assets>()?;
+        Ok(Handlebars { hbs })
+    }
+
+    fn render<T>(&self, name: &str, data: &T) -> Result<String>
+    where
+        T: serde::Serialize,
+    {
+        let out = self.hbs.render(name, data)?;
+        Ok(out)
+    }
+
+    fn render_archive(&self, artifact: &db::Artifact) -> Result<String> {
+        let artifact = self.hbs.render("archive.txt.hbs", artifact)?;
+        Ok(artifact)
+    }
+}
+
 fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
     warp::reply::with_header(
         reply,
@@ -37,11 +62,6 @@ fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
 async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
     let html = hbs.render("index.html.hbs", &()).map_err(Error::from)?;
     Ok(Box::new(warp::reply::html(html)))
-}
-
-fn render_archive(hbs: &Handlebars, artifact: &db::Artifact) -> Result<String> {
-    let artifact = hbs.render("archive.txt.hbs", artifact)?;
-    Ok(artifact)
 }
 
 fn detect_autotools(artifact: &db::Artifact) -> Result<bool> {
@@ -84,7 +104,7 @@ async fn artifact(
     };
 
     let refs = db.get_all_refs_for(&artifact.chksum).await?;
-    let files = render_archive(&hbs, &artifact)?;
+    let files = hbs.render_archive(&artifact)?;
 
     let suspecting_autotools = detect_autotools(&artifact)?;
 
@@ -174,8 +194,8 @@ async fn diff(
         artifact2.files = process_files_list(artifact2.files, trimmed)?;
     }
 
-    let artifact1 = render_archive(&hbs, &artifact1)?;
-    let artifact2 = render_archive(&hbs, &artifact2)?;
+    let artifact1 = hbs.render_archive(&artifact1)?;
+    let artifact2 = hbs.render_archive(&artifact2)?;
 
     let diff = diffy::create_file_patch(&artifact1, &artifact2, &diff_from, &diff_to);
     let diff = diff.to_string();
@@ -212,11 +232,7 @@ pub async fn rejection(err: warp::Rejection) -> result::Result<impl warp::Reply,
 }
 
 pub async fn run(args: &args::Web) -> Result<()> {
-    let mut hbs = Handlebars::new();
-    hbs.set_prevent_indent(true);
-    hbs.register_embed_templates::<Assets>()?;
-
-    let hbs = Arc::new(hbs);
+    let hbs = Arc::new(Handlebars::new()?);
     let hbs = warp::any().map(move || hbs.clone());
 
     let db = db::Client::create().await?;
@@ -292,4 +308,128 @@ pub async fn run(args: &args::Web) -> Result<()> {
     warp::serve(routes).run(args.bind_addr).await;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ingest::tar::LinksTo;
+
+    #[test]
+    fn test_render_archive() {
+        let hbs = Handlebars::new().unwrap();
+        let out = hbs.render_archive(&db::Artifact {
+            db_version: 0,
+            chksum: "abcd".to_string(),
+            files: Some(serde_json::to_value([
+                ingest::tar::Entry {
+                    digest: None,
+                    path: "cmatrix-2.0/".to_string(),
+                    links_to: None,
+                },
+                ingest::tar::Entry {
+                    digest: Some("sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984".to_string()),
+                    path: "cmatrix-2.0/.gitignore".to_string(),
+                    links_to: None,
+                },
+                ingest::tar::Entry {
+                    digest: None,
+                    path: "cmatrix-2.0/data/".to_string(),
+                    links_to: None,
+                },
+                ingest::tar::Entry {
+                    digest: None,
+                    path: "cmatrix-2.0/data/img/".to_string(),
+                    links_to: None,
+                },
+                ingest::tar::Entry {
+                    digest: Some("sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58".to_string()),
+                    path: "cmatrix-2.0/data/img/capture_bold_font.png".to_string(),
+                    links_to: None,
+                }
+            ]).unwrap()),
+        }).unwrap();
+        assert_eq!(out, "                                                                         cmatrix-2.0/
+sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984  cmatrix-2.0/.gitignore
+                                                                         cmatrix-2.0/data/
+                                                                         cmatrix-2.0/data/img/
+sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58  cmatrix-2.0/data/img/capture_bold_font.png
+");
+    }
+
+    #[test]
+    fn test_render_archive_symlink() {
+        let hbs = Handlebars::new().unwrap();
+        let out = hbs
+            .render_archive(&db::Artifact {
+                db_version: 0,
+                chksum: "abcd".to_string(),
+                files: Some(
+                    serde_json::to_value([
+                        ingest::tar::Entry {
+                            digest: None,
+                            path: "foo-1.0/".to_string(),
+                            links_to: None,
+                        },
+                        ingest::tar::Entry {
+                            digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
+                            path: "foo-1.0/original_file".to_string(),
+                            links_to: None,
+                        },
+                        ingest::tar::Entry {
+                            digest: None,
+                            path: "foo-1.0/symlink_file".to_string(),
+                            links_to: Some(LinksTo::Symbolic("original_file".to_string())),
+                        },
+                    ])
+                    .unwrap(),
+                ),
+            })
+            .unwrap();
+        assert_eq!(
+            out,
+            "                                                                         foo-1.0/
+sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0/original_file
+                                                                         foo-1.0/symlink_file -> original_file
+"
+        );
+    }
+
+    #[test]
+    fn test_render_archive_hardlink() {
+        let hbs = Handlebars::new().unwrap();
+        let out = hbs
+            .render_archive(&db::Artifact {
+                db_version: 0,
+                chksum: "abcd".to_string(),
+                files: Some(
+                    serde_json::to_value([
+                        ingest::tar::Entry {
+                            digest: None,
+                            path: "foo-1.0/".to_string(),
+                            links_to: None,
+                        },
+                        ingest::tar::Entry {
+                            digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
+                            path: "foo-1.0/original_file".to_string(),
+                            links_to: None,
+                        },
+                        ingest::tar::Entry {
+                            digest: None,
+                            path: "foo-1.0/hardlink_file".to_string(),
+                            links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
+                        },
+                    ])
+                    .unwrap(),
+                ),
+            })
+            .unwrap();
+        assert_eq!(
+            out,
+            "                                                                         foo-1.0/
+sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0/original_file
+                                                                         foo-1.0/hardlink_file link to foo-1.0/original_file
+"
+        );
+    }
 }

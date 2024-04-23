@@ -3,5 +3,12 @@
 {{this.digest}}  {{this.path}}
 {{else}}
                                                                          {{this.path}}
+{{~#if this.links_to.symbolic}}
+ -> {{this.links_to.symbolic}}
+{{~/if}}
+{{~#if this.links_to.hard}}
+ link to {{this.links_to.hard}}
+{{~/if}}
+
 {{/if}}
 {{/each}}
