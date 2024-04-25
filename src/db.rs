@@ -354,8 +354,9 @@ impl From<Ref> for RefView {
                 (Cow::Borrowed("Alpine"), Some(href))
             }
             "opensuse" => {
-                let href = format!("https://packagehub.suse.com/packages/{}/", r.package);
-                (Cow::Borrowed("OpenSUSE"), Some(href))
+                let href = format!("https://build.opensuse.org/package/show/openSUSE:Factory/{}", r.package);
+                // alternative: https://src.opensuse.org/rpm/{} or https://code.opensuse.org/package/{}
+                (Cow::Borrowed("openSUSE"), Some(href))
             }
             other => (Cow::Owned(other.to_owned()), None),
         };
