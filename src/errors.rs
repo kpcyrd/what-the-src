@@ -50,6 +50,8 @@ pub enum Error {
     GitFetchTimeout,
     #[error("Error in git fetch operation")]
     GitFetchError(ExitStatus),
+    #[error("Failed to determine filename for Sources index")]
+    AptIndexMissingSources,
 }
 
 // TODO: consider fixing this

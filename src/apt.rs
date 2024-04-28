@@ -3,6 +3,7 @@ use apt_parser::errors::{APTError, ParseError};
 use apt_parser::ReleaseHash;
 use std::str;
 
+#[derive(Debug, PartialEq)]
 pub struct SourcesIndex {
     pub pkgs: Vec<SourcePkg>,
 }
@@ -35,7 +36,7 @@ impl SourcesIndex {
                 if let Some(package) = package.take() {
                     pkgs.push(package);
                 }
-            } else if line == "Checksums-Sha256:" {
+            } else if line.trim_end() == "Checksums-Sha256:" {
                 in_checksums_sha256_section = true;
             } else if let Some(line) = line.strip_prefix(' ') {
                 if !in_checksums_sha256_section {
@@ -111,7 +112,7 @@ impl SourcesIndex {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct SourcePkg {
     pub package: String,
     pub version: Option<String>,
@@ -147,5 +148,79 @@ impl Release {
             .ok_or(APTError::ParseError(ParseError))?;
 
         Ok(sources_entry)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_kali() {
+        let data = br#"Package: sn0int
+Format: 3.0 (quilt)
+Binary: sn0int
+Architecture: any
+Version: 0.26.0-0kali3
+Maintainer: Kali Developers <devel@kali.org>
+Uploaders: Sophie Brun <sophie@offensive-security.com>
+Homepage: https://github.com/kpcyrd/sn0int
+Standards-Version: 4.6.2
+Vcs-Browser: https://gitlab.com/kalilinux/packages/sn0int
+Vcs-Git: https://gitlab.com/kalilinux/packages/sn0int.git
+Build-Depends: bash-completion, ca-certificates, debhelper-compat (= 13), libseccomp-dev, libsodium-dev, libsqlite3-dev, pkg-config, publicsuffix, python3-sphinx, cargo
+Package-List:
+ sn0int deb net optional arch=any
+Priority: optional
+Section: net
+Directory: pool/main/s/sn0int
+Files: 
+ a2f2a9f592c506b6a746dc9debd1cacd 1807 sn0int_0.26.0-0kali3.dsc
+ 5c5578537a0abe07b683f8b454af025d 1798079 sn0int_0.26.0.orig.tar.gz
+ b103d74ae55843b0f87112988062be54 8648 sn0int_0.26.0-0kali3.debian.tar.xz
+Checksums-Sha1: 
+ 0545bcbba1fcf73b6bd5ba830124ccec7abbf5f8 1807 sn0int_0.26.0-0kali3.dsc
+ e0b7135bd653540cdc234e2aa334eb1d4bba27f6 1798079 sn0int_0.26.0.orig.tar.gz
+ d02663536e05ffc292f139d3727a140886c21023 8648 sn0int_0.26.0-0kali3.debian.tar.xz
+Checksums-Sha256: 
+ 6075e8c34b5a08aea77319e1346e42b846b7ee460d2c6ea2bb58e1ab6a651674 1807 sn0int_0.26.0-0kali3.dsc
+ 4ce71f69410a9c9470edf922c3c09b6a53bfbf41d154aa124859bbce8014cf13 1798079 sn0int_0.26.0.orig.tar.gz
+ 206f6f924a3b79f5495c512e965a0d44915c9b0a2b8c32feac7aac12f1ca1aa9 8648 sn0int_0.26.0-0kali3.debian.tar.xz
+
+"#;
+        let index = SourcesIndex::parse(data).unwrap();
+        assert_eq!(
+            index,
+            SourcesIndex {
+                pkgs: vec![SourcePkg {
+                    package: "sn0int".to_string(),
+                    version: Some("0.26.0-0kali3".to_string()),
+                    directory: Some("pool/main/s/sn0int".to_string()),
+                    checksums_sha256: vec![
+                        ReleaseHash {
+                            filename: "sn0int_0.26.0-0kali3.dsc".to_string(),
+                            hash:
+                                "6075e8c34b5a08aea77319e1346e42b846b7ee460d2c6ea2bb58e1ab6a651674"
+                                    .to_string(),
+                            size: 1807
+                        },
+                        ReleaseHash {
+                            filename: "sn0int_0.26.0.orig.tar.gz".to_string(),
+                            hash:
+                                "4ce71f69410a9c9470edf922c3c09b6a53bfbf41d154aa124859bbce8014cf13"
+                                    .to_string(),
+                            size: 1798079
+                        },
+                        ReleaseHash {
+                            filename: "sn0int_0.26.0-0kali3.debian.tar.xz".to_string(),
+                            hash:
+                                "206f6f924a3b79f5495c512e965a0d44915c9b0a2b8c32feac7aac12f1ca1aa9"
+                                    .to_string(),
+                            size: 8648
+                        }
+                    ],
+                }]
+            }
+        );
     }
 }
