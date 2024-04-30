@@ -17,4 +17,5 @@ WORKDIR /app
 COPY --from=0 /what-the-src /
 USER nobody
 ENV BIND_ADDR=0.0.0.0:8000
+ENV WHATSRC_GIT_TMP=/var/cache/whatsrc
 ENTRYPOINT ["/what-the-src"]
