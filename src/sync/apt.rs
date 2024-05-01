@@ -8,7 +8,7 @@ use apt_parser::Release;
 use tokio::io::{self, AsyncReadExt};
 
 async fn find_source_index_path(url: &str, suite: &str) -> Result<(String, &'static str)> {
-    let mut reader = utils::fetch(&url).await?;
+    let mut reader = utils::fetch(url).await?;
 
     let mut buf = String::new();
     reader.read_to_string(&mut buf).await?;
@@ -17,7 +17,7 @@ async fn find_source_index_path(url: &str, suite: &str) -> Result<(String, &'sta
     for file in release.sha256sum.into_iter().flatten() {
         let name = file.filename;
 
-        match name.strip_prefix(&suite) {
+        match name.strip_prefix(suite) {
             Some("/source/Sources.xz") => return Ok((name, "xz")),
             Some("/source/Sources.gz") => return Ok((name, "gz")),
             _ => (),
@@ -36,7 +36,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
 
     info!("Fetching Release file");
     let url = format!("{base_url}/dists/{release}/Release");
-    let (filename, compression) = find_source_index_path(&url, &suite).await?;
+    let (filename, compression) = find_source_index_path(&url, suite).await?;
 
     info!("Fetching Sources index");
     let url = format!("{base_url}/dists/{release}/{filename}");

@@ -156,7 +156,7 @@ impl SourceEntry {
 pub fn task_for_url(url: &str) -> Option<Task> {
     match url.split_once("://") {
         Some(("https" | "http", _)) => {
-            if url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz") {
+            if utils::is_possible_tar_artifact(url) {
                 Task::new(
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {

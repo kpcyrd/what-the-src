@@ -4,6 +4,7 @@ use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::git;
 use crate::ingest;
+use crate::utils;
 use futures::TryStreamExt;
 use tokio::io;
 use tokio::time::{self, Duration};
@@ -199,7 +200,7 @@ impl Worker {
                         continue;
                     }
 
-                    if !url.contains(".tar") && !url.ends_with(".crate") && !url.ends_with(".tgz") {
+                    if !utils::is_possible_tar_artifact(url) {
                         continue;
                     }
 
