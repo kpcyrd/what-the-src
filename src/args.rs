@@ -48,6 +48,7 @@ pub enum Plumbing {
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
     SyncRpm(SyncRpm),
+    SyncGentoo(SyncGentoo),
     AddRef(AddRef),
     GitArchive(GitArchive),
     Reindex(Reindex),
@@ -136,6 +137,16 @@ pub struct SyncRpm {
     #[arg(long)]
     pub vendor: String,
     pub url: String,
+}
+
+/// Start an import of a software vendor (gentoo)
+#[derive(Debug, Parser)]
+pub struct SyncGentoo {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
 }
 
 /// This command should merge into Ingest eventually

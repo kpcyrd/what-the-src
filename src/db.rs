@@ -22,6 +22,7 @@ impl Client {
     pub async fn create() -> Result<Self> {
         let database_url = env::var("DATABASE_URL").unwrap();
 
+        debug!("Connecting to database...");
         let pool = PgPoolOptions::new()
             .max_connections(5)
             .connect(&database_url)
@@ -29,6 +30,7 @@ impl Client {
 
         // sqlx currently does not support just putting `migrations` here
         sqlx::migrate!("db/migrations").run(&pool).await?;
+        debug!("Database has been setup");
 
         Ok(Client { pool })
     }

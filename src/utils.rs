@@ -19,3 +19,7 @@ pub async fn fetch_or_open(path: &str, should_fetch: bool) -> Result<Box<dyn Asy
         Ok(Box::new(file))
     }
 }
+
+pub fn is_possible_tar_artifact(url: &str) -> bool {
+    url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz")
+}

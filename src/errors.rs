@@ -29,6 +29,8 @@ pub enum Error {
     #[error(transparent)]
     Rpm(#[from] rpm::Error),
     #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]
     ChildExit(std::process::ExitStatus),

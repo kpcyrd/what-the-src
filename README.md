@@ -31,3 +31,9 @@ what-the-src plumbing sync-alpine --vendor alpine --fetch https://ftp.halifax.rw
 ```
 what-the-src plumbing sync-rpm --vendor opensuse https://ftp.halifax.rwth-aachen.de/opensuse/tumbleweed/repo/src-oss/
 ```
+
+### Sync Gentoo
+
+```
+what-the-src plumbing sync-gentoo --vendor gentoo --fetch https://github.com/gentoo-mirror/gentoo/archive/refs/heads/master.tar.gz
+```
