@@ -367,6 +367,10 @@ impl From<Ref> for RefView {
                 let href = format!("https://pkg.kali.org/pkg/{}", r.package);
                 (Cow::Borrowed("Kali"), Some(href))
             }
+            "gentoo" => {
+                let href = format!("https://packages.gentoo.org/packages/{}", r.package);
+                (Cow::Borrowed("Gentoo"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
