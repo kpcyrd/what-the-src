@@ -214,8 +214,11 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                     continue;
                 };
 
+                let blake2b = format!("blake2b:{blake2b}");
+                let already_imported = db.resolve_artifact(&blake2b).await?.is_some();
+
                 let r = db::Ref {
-                    chksum: format!("blake2b:{blake2b}"),
+                    chksum: blake2b,
                     vendor: vendor.to_string(),
                     package: pkg.to_string(),
                     version: version.to_string(),
@@ -224,7 +227,7 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                 info!("insert: {r:?}");
                 db.insert_ref(&r).await?;
 
-                if db.resolve_artifact(blake2b).await?.is_some() {
+                if already_imported {
                     continue;
                 };
 
