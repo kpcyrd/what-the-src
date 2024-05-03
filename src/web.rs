@@ -138,6 +138,27 @@ async fn artifact(
     }
 }
 
+async fn sbom(
+    hbs: Arc<Handlebars<'_>>,
+    db: Arc<db::Client>,
+    chksum: String,
+) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let Some(sbom) = db.get_sbom(&chksum).await? else {
+        return Err(reject::not_found());
+    };
+
+    let html = hbs
+        .render(
+            "sbom.html.hbs",
+            &json!({
+                "sbom": sbom,
+                "chksum": chksum,
+            }),
+        )
+        .map_err(Error::from)?;
+    Ok(Box::new(warp::reply::html(html)))
+}
+
 #[derive(Debug, Deserialize)]
 struct SearchQuery {
     q: String,
@@ -266,6 +287,14 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::end())
         .and_then(artifact)
         .map(cache_control);
+    let sbom = warp::get()
+        .and(hbs.clone())
+        .and(db.clone())
+        .and(warp::path("sbom"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and_then(sbom)
+        .map(cache_control);
     let search = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -311,6 +340,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(
             index
                 .or(artifact)
+                .or(sbom)
                 .or(search)
                 .or(diff_original)
                 .or(diff_sorted)

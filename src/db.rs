@@ -317,6 +317,14 @@ impl Client {
         .await?;
         Ok(())
     }
+
+    pub async fn get_sbom(&self, chksum: &str) -> Result<Option<Sbom>> {
+        let result = sqlx::query_as::<_, Sbom>("SELECT * FROM sboms WHERE chksum = $1")
+            .bind(chksum)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(result)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -331,6 +339,13 @@ pub struct Alias {
     pub alias_from: String,
     pub alias_to: String,
     pub reason: Option<String>,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct Sbom {
+    pub chksum: String,
+    pub strain: String,
+    pub data: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

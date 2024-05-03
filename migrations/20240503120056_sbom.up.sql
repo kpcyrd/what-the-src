@@ -7,7 +7,8 @@ CREATE TABLE sboms (
 );
 
 CREATE INDEX sboms_idx_strain ON sboms (strain);
-CREATE UNIQUE INDEX sboms_idx_uniq ON sboms (chksum);
+CREATE INDEX sboms_idx_chksum ON sboms (chksum);
+CREATE UNIQUE INDEX sboms_idx_uniq ON sboms (chksum, strain);
 
 CREATE TABLE sbom_refs (
     from_archive VARCHAR NOT NULL,
@@ -17,11 +18,6 @@ CREATE TABLE sbom_refs (
     CONSTRAINT fk_from_archive
         FOREIGN KEY(from_archive)
         REFERENCES artifacts(chksum)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_sbom_chksum
-        FOREIGN KEY(sbom_chksum)
-        REFERENCES sboms(chksum)
         ON DELETE CASCADE
 );
 
