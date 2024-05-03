@@ -119,7 +119,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     Ok((inner_digest, outer_digest, files))
 }
 
-pub async fn run(args: &args::Ingest) -> Result<()> {
+pub async fn run(args: &args::IngestTar) -> Result<()> {
     let db = db::Client::create().await?;
 
     let (inner_digests, outer_digests, files) =

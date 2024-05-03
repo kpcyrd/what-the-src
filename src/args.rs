@@ -41,9 +41,10 @@ pub struct Worker {
 
 #[derive(Debug, Subcommand)]
 pub enum Plumbing {
-    Ingest(Ingest),
+    IngestTar(IngestTar),
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     IngestRpm(IngestRpm),
+    IngestSbom(IngestSbom),
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
@@ -56,7 +57,7 @@ pub enum Plumbing {
 
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
-pub struct Ingest {
+pub struct IngestTar {
     #[arg(short, long)]
     pub compression: Option<String>,
 }
@@ -89,6 +90,14 @@ pub struct IngestRpm {
     pub version: String,
     #[arg(long)]
     pub fetch: bool,
+    pub file: String,
+}
+
+/// Ingest a dependency lockfile
+#[derive(Debug, Parser)]
+pub struct IngestSbom {
+    #[arg(long)]
+    pub strain: String,
     pub file: String,
 }
 

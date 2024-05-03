@@ -1,6 +1,8 @@
+use crate::chksums;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
@@ -299,6 +301,21 @@ impl Client {
         }
 
         Ok(rows)
+    }
+
+    pub async fn insert_sbom(&self, sbom: &sbom::Sbom) -> Result<()> {
+        let chksum = chksums::sha256(sbom.data().as_bytes());
+        let _result = sqlx::query(
+            "INSERT INTO sboms (strain, chksum, data)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(sbom.strain())
+        .bind(chksum)
+        .bind(sbom.data())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 

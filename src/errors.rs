@@ -54,6 +54,8 @@ pub enum Error {
     GitFetchError(ExitStatus),
     #[error("Failed to determine filename for Sources index")]
     AptIndexMissingSources,
+    #[error("Unknown sbom strain: {0:?}")]
+    UnknownSbomStrain(String),
 }
 
 // TODO: consider fixing this

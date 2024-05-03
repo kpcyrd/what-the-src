@@ -10,6 +10,7 @@ pub mod git;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod reindex;
+pub mod sbom;
 pub mod sync;
 pub mod utils;
 pub mod web;
@@ -37,11 +38,12 @@ async fn main() -> Result<()> {
     match args.subcommand {
         SubCommand::Web(args) => web::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
-        SubCommand::Plumbing(Plumbing::Ingest(args)) => ingest::tar::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestTar(args)) => ingest::tar::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {
             ingest::pacman::run(&args).await
         }
         SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestSbom(args)) => sbom::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
