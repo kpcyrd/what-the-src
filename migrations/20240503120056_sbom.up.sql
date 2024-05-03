@@ -12,6 +12,7 @@ CREATE UNIQUE INDEX sboms_idx_uniq ON sboms (chksum, strain);
 
 CREATE TABLE sbom_refs (
     from_archive VARCHAR NOT NULL,
+    sbom_strain VARCHAR NOT NULL,
     sbom_chksum VARCHAR NOT NULL,
     path VARCHAR NOT NULL,
 

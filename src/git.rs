@@ -1,5 +1,4 @@
 use crate::args;
-use crate::chksums::Checksums;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
@@ -49,10 +48,7 @@ impl FromStr for GitUrl {
     }
 }
 
-pub async fn take_snapshot(
-    git: &GitUrl,
-    tmp: &str,
-) -> Result<(Checksums, Vec<ingest::tar::Entry>)> {
+pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<()> {
     fs::create_dir_all(tmp).await?;
     let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
@@ -123,25 +119,20 @@ pub async fn take_snapshot(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let (chksums, _chksums, files) = ingest::tar::stream_data(stdout, None).await?;
+    ingest::tar::stream_data(db, stdout, None).await?;
 
     let status = child.wait().await?;
     if !status.success() {
         return Err(Error::GitFetchError(status));
     }
 
-    Ok((chksums, files))
+    Ok(())
 }
 
 pub async fn run(args: &args::GitArchive) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let (chksums, files) = take_snapshot(&args.git, &args.tmp).await?;
-    info!("digests={chksums:?}");
-
-    db.insert_artifact(&chksums.sha256, &files).await?;
-    db.register_chksums_aliases(&chksums, &chksums.sha256)
-        .await?;
+    take_snapshot(&db, &args.git, &args.tmp).await?;
 
     Ok(())
 }

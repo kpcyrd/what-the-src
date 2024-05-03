@@ -303,7 +303,7 @@ impl Client {
         Ok(rows)
     }
 
-    pub async fn insert_sbom(&self, sbom: &sbom::Sbom) -> Result<()> {
+    pub async fn insert_sbom(&self, sbom: &sbom::Sbom) -> Result<String> {
         let chksum = chksums::sha256(sbom.data().as_bytes());
         let _result = sqlx::query(
             "INSERT INTO sboms (strain, chksum, data)
@@ -311,11 +311,11 @@ impl Client {
             ON CONFLICT DO NOTHING",
         )
         .bind(sbom.strain())
-        .bind(chksum)
+        .bind(&chksum)
         .bind(sbom.data())
         .execute(&self.pool)
         .await?;
-        Ok(())
+        Ok(chksum)
     }
 
     pub async fn get_sbom(&self, chksum: &str) -> Result<Option<Sbom>> {
@@ -324,6 +324,37 @@ impl Client {
             .fetch_optional(&self.pool)
             .await?;
         Ok(result)
+    }
+
+    pub async fn get_sbom_with_strain(&self, chksum: &str, strain: &str) -> Result<Option<Sbom>> {
+        let result =
+            sqlx::query_as::<_, Sbom>("SELECT * FROM sboms WHERE chksum = $1 AND strain = $2")
+                .bind(chksum)
+                .bind(strain)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(result)
+    }
+
+    pub async fn insert_sbom_ref(
+        &self,
+        archive_digest: &str,
+        sbom_strain: &str,
+        sbom_digest: &str,
+        path: &str,
+    ) -> Result<()> {
+        let _result = sqlx::query(
+            "INSERT INTO sbom_refs (from_archive, sbom_strain, sbom_chksum, path)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(archive_digest)
+        .bind(sbom_strain)
+        .bind(sbom_digest)
+        .bind(path)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 

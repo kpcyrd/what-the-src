@@ -60,6 +60,7 @@ pub enum Plumbing {
 pub struct IngestTar {
     #[arg(short, long)]
     pub compression: Option<String>,
+    pub file: Option<String>,
 }
 
 /// Ingest a pacman git .tar.gz
