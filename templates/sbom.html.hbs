@@ -5,7 +5,9 @@
 {{#*inline "page"}}
 <h1 class="title-chksum word-wrap">{{chksum}}</h1>
 
-<pre>{{sbom.data}}</pre>
+<pre id="content" class="x-overflow">
+{{sbom.data}}
+</pre>
 {{/inline}}
 
 {{> base.html.hbs }}

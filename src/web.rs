@@ -13,7 +13,7 @@ use std::result;
 use std::sync::Arc;
 use warp::reject;
 use warp::{
-    http::{header::CACHE_CONTROL, HeaderValue, StatusCode},
+    http::{header, HeaderValue, StatusCode},
     Filter,
 };
 
@@ -54,7 +54,7 @@ impl<'a> Handlebars<'a> {
 fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
     warp::reply::with_header(
         reply,
-        CACHE_CONTROL,
+        header::CACHE_CONTROL,
         HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300"),
     )
 }
@@ -143,20 +143,34 @@ async fn sbom(
     db: Arc<db::Client>,
     chksum: String,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let Some(sbom) = db.get_sbom(&chksum).await? else {
+    let (chksum, txt) = chksum
+        .strip_suffix(".txt")
+        .map(|chksum| (chksum, true))
+        .unwrap_or((chksum.as_str(), false));
+
+    let Some(sbom) = db.get_sbom(chksum).await? else {
         return Err(reject::not_found());
     };
 
-    let html = hbs
-        .render(
-            "sbom.html.hbs",
-            &json!({
-                "sbom": sbom,
-                "chksum": chksum,
-            }),
-        )
-        .map_err(Error::from)?;
-    Ok(Box::new(warp::reply::html(html)))
+    if txt {
+        let mut res = warp::reply::Response::new(sbom.data.into());
+        res.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
+        Ok(Box::new(res))
+    } else {
+        let html = hbs
+            .render(
+                "sbom.html.hbs",
+                &json!({
+                    "sbom": sbom,
+                    "chksum": chksum,
+                }),
+            )
+            .map_err(Error::from)?;
+        Ok(Box::new(warp::reply::html(html)))
+    }
 }
 
 #[derive(Debug, Deserialize)]
