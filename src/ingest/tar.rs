@@ -95,10 +95,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             };
 
             let digest = if is_file {
-                let sbom = match filename.as_deref() {
-                    Some("Cargo.lock") => Some(sbom::cargo::STRAIN),
-                    _ => None,
-                };
+                let sbom = sbom::detect_from_filename(filename.as_deref());
 
                 let mut buf = [0; 4096];
                 let mut data = Vec::<u8>::new();
