@@ -16,6 +16,14 @@ pub enum Sbom {
     Yarn(yarn::YarnLock),
 }
 
+impl TryFrom<&db::Sbom> for Sbom {
+    type Error = Error;
+
+    fn try_from(sbom: &db::Sbom) -> Result<Self> {
+        Sbom::new(&sbom.strain, sbom.data.clone())
+    }
+}
+
 impl Sbom {
     pub fn new(strain: &str, data: String) -> Result<Sbom> {
         match strain {
@@ -42,6 +50,16 @@ impl Sbom {
             Sbom::Composer(sbom) => &sbom.data,
             Sbom::Npm(sbom) => &sbom.data,
             Sbom::Yarn(sbom) => &sbom.data,
+        }
+    }
+
+    pub fn to_packages(&self) -> Result<Vec<cargo::Packagev3>> {
+        match self {
+            Sbom::Cargo(sbom) => {
+                let sbom = sbom.parse()?;
+                sbom.collect::<Result<Vec<_>>>()
+            }
+            _ => Ok(vec![]),
         }
     }
 }

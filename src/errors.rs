@@ -19,6 +19,8 @@ pub enum Error {
     #[error(transparent)]
     Xml(#[from] serde_xml_rs::Error),
     #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+    #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),

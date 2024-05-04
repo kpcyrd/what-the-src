@@ -5,9 +5,24 @@
 {{#*inline "page"}}
 <h1 class="title-chksum word-wrap">{{chksum}}</h1>
 
+{{#if packages}}
+{{sbom.strain}}
+<ul>
+{{#each packages}}
+<li>
+{{this.name}}
+({{this.version}})
+{{#if this.checksum}}
+<code><a href="/artifact/sha256:{{this.checksum}}">sha256:{{this.checksum}}</a></code>
+{{/if}}
+</li>
+{{/each}}
+</ul>
+{{else}}
 <pre id="content" class="x-overflow">
 {{sbom.data}}
 </pre>
+{{/if}}
 {{/inline}}
 
 {{> base.html.hbs }}

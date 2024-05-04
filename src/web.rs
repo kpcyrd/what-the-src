@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use diffy_fork_filenames as diffy;
 use log::error;
 use rust_embed::RustEmbed;
@@ -160,12 +161,21 @@ async fn sbom(
         );
         Ok(Box::new(res))
     } else {
+        let packages = match sbom::Sbom::try_from(&sbom).and_then(|sbom| sbom.to_packages()) {
+            Ok(packages) => packages,
+            Err(err) => {
+                warn!("Failed to parse package lock: {err:#}");
+                Vec::new()
+            }
+        };
+
         let html = hbs
             .render(
                 "sbom.html.hbs",
                 &json!({
                     "sbom": sbom,
                     "chksum": chksum,
+                    "packages": packages,
                 }),
             )
             .map_err(Error::from)?;
