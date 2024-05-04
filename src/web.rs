@@ -112,9 +112,12 @@ async fn artifact(
         return Err(reject::not_found());
     };
 
+    let sbom_refs = db.get_sbom_refs_for_archive(resolved_chksum).await?;
+
     if json {
         Ok(Box::new(warp::reply::json(&json!({
             "files": artifact.files,
+            "sbom_refs": sbom_refs,
         }))))
     } else {
         let refs = db.get_all_refs_for(&artifact.chksum).await?;
@@ -130,6 +133,7 @@ async fn artifact(
                     "chksum": chksum,
                     "alias": alias,
                     "refs": refs,
+                    "sbom_refs": sbom_refs,
                     "files": files,
                     "suspecting_autotools": suspecting_autotools,
                 }),
@@ -153,6 +157,8 @@ async fn sbom(
         return Err(reject::not_found());
     };
 
+    let sbom_refs = db.get_sbom_refs_for_sbom(&sbom).await?;
+
     if txt {
         let mut res = warp::reply::Response::new(sbom.data.into());
         res.headers_mut().insert(
@@ -175,6 +181,7 @@ async fn sbom(
                 &json!({
                     "sbom": sbom,
                     "chksum": chksum,
+                    "sbom_refs": sbom_refs,
                     "packages": packages,
                 }),
             )

@@ -356,6 +356,41 @@ impl Client {
         .await?;
         Ok(())
     }
+
+    pub async fn get_sbom_refs_for_archive(&self, archive_digest: &str) -> Result<Vec<SbomRef>> {
+        let mut result = sqlx::query_as::<_, SbomRef>(
+            "SELECT *
+            FROM sbom_refs
+            WHERE from_archive = $1
+            ORDER BY path ASC",
+        )
+        .bind(archive_digest)
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
+    }
+
+    pub async fn get_sbom_refs_for_sbom(&self, sbom: &Sbom) -> Result<Vec<SbomRef>> {
+        let mut result = sqlx::query_as::<_, SbomRef>(
+            "SELECT *
+            FROM sbom_refs
+            WHERE sbom_strain = $1 AND sbom_chksum = $2
+            ORDER BY from_archive ASC, path ASC",
+        )
+        .bind(&sbom.strain)
+        .bind(&sbom.chksum)
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -377,6 +412,14 @@ pub struct Sbom {
     pub chksum: String,
     pub strain: String,
     pub data: String,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct SbomRef {
+    pub from_archive: String,
+    pub sbom_strain: String,
+    pub sbom_chksum: String,
+    pub path: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

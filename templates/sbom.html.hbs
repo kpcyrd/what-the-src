@@ -5,8 +5,20 @@
 {{#*inline "page"}}
 <h1 class="title-chksum word-wrap">{{chksum}}</h1>
 
+{{#if sbom_refs}}
+<h2>Found in archives</h2>
+<ul>
+{{#each sbom_refs}}
+<li class="word-wrap">
+<code><a href="/artifact/{{this.from_archive}}">{{this.from_archive}}</a></code>
+{{this.path}}
+</li>
+{{/each}}
+</ul>
+{{/if}}
+
 {{#if packages}}
-{{sbom.strain}}
+<h2>{{sbom.strain}}</h2>
 <ul>
 {{#each packages}}
 <li class="word-wrap">

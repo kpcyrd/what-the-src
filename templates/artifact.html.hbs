@@ -41,6 +41,18 @@ for alias
 </ul>
 {{/if}}
 
+{{~#if sbom_refs}}
+<h2>Dependency Lockfiles</h2>
+<ul>
+{{#each sbom_refs}}
+<li class="word-wrap">
+<code><a href="/sbom/{{this.sbom_chksum}}">{{this.sbom_chksum}}</a></code>
+{{this.path}}
+</li>
+{{/each}}
+</ul>
+{{/if}}
+
 {{#if suspecting_autotools}}
 <div class="warning word-wrap">
 <h3>Suspecting autotools pre-processing</h3>
