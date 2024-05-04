@@ -28,17 +28,11 @@ pub enum LinksTo {
     Symbolic(String),
 }
 
-pub struct SbomRef {
-    pub strain: &'static str,
-    pub chksum: String,
-    pub path: String,
-}
-
 pub struct TarSummary {
     pub inner_digests: Checksums,
     pub outer_digests: Checksums,
     pub files: Vec<Entry>,
-    pub sbom_refs: Vec<SbomRef>,
+    pub sbom_refs: Vec<sbom::Ref>,
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
@@ -119,7 +113,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                         let sbom = sbom::Sbom::new(sbom, data)?;
                         info!("Inserting sbom {:?}: {digest:?}", sbom.strain());
                         let chksum = db.insert_sbom(&sbom).await?;
-                        sbom_refs.push(SbomRef {
+                        sbom_refs.push(sbom::Ref {
                             strain: sbom.strain(),
                             chksum,
                             path: path.clone(),

@@ -92,17 +92,8 @@ impl Worker {
                 let stream = resp.bytes_stream();
                 let reader =
                     StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-                let (refs, tasks) =
-                    ingest::pacman::stream_data(reader, &vendor, &package, &version, false).await?;
-
-                for task in tasks {
-                    self.db.insert_task(&task).await?;
-                }
-
-                for r in refs {
-                    info!("insert: {r:?}");
-                    self.db.insert_ref(&r).await?;
-                }
+                ingest::pacman::stream_data(&self.db, reader, &vendor, &package, &version, false)
+                    .await?;
 
                 self.db
                     .insert_package(&db::Package {

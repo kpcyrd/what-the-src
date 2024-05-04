@@ -46,6 +46,13 @@ impl Sbom {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Ref {
+    pub strain: &'static str,
+    pub chksum: String,
+    pub path: String,
+}
+
 pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
     match filename {
         Some("Cargo.lock") => Some(cargo::STRAIN),
