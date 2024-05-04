@@ -6,6 +6,7 @@ pub mod yarn;
 use crate::args;
 use crate::db;
 use crate::errors::*;
+use serde::Serialize;
 use tokio::fs;
 
 #[derive(Debug, PartialEq)]
@@ -53,15 +54,26 @@ impl Sbom {
         }
     }
 
-    pub fn to_packages(&self) -> Result<Vec<cargo::Packagev3>> {
+    pub fn to_packages(&self) -> Result<Vec<Package>> {
         match self {
             Sbom::Cargo(sbom) => {
                 let sbom = sbom.parse()?;
                 sbom.collect::<Result<Vec<_>>>()
             }
+            Sbom::Yarn(sbom) => {
+                let sbom = sbom.parse()?;
+                Ok(sbom.collect::<Vec<_>>())
+            }
             _ => Ok(vec![]),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct Package {
+    pub name: String,
+    pub version: String,
+    pub checksum: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]

@@ -31,7 +31,11 @@ pub enum Error {
     #[error(transparent)]
     Rpm(#[from] rpm::Error),
     #[error(transparent)]
+    YarnLock(#[from] yarn_lock_parser::YarnLockError),
+    #[error(transparent)]
     ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    Base64(#[from] data_encoding::DecodeError),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]

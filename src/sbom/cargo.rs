@@ -1,4 +1,5 @@
 use crate::errors::*;
+use crate::sbom;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -19,16 +20,19 @@ impl CargoLock {
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct ParsedLock {
     version: u8,
-    package: VecDeque<serde_json::Value>,
+    #[serde(rename = "package")]
+    packages: VecDeque<serde_json::Value>,
 }
 
 impl Iterator for ParsedLock {
-    type Item = Result<Packagev3>;
+    type Item = Result<sbom::Package>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let package = self.package.pop_front()?;
-        let package = serde_json::from_value(package).map_err(Error::from);
-        Some(package)
+        let package = self.packages.pop_front()?;
+        match serde_json::from_value::<Packagev3>(package) {
+            Ok(pkg) => Some(Ok(pkg.into())),
+            Err(err) => Some(Err(err.into())),
+        }
     }
 }
 
@@ -38,6 +42,16 @@ pub struct Packagev3 {
     pub version: String,
     pub source: Option<String>,
     pub checksum: Option<String>,
+}
+
+impl From<Packagev3> for sbom::Package {
+    fn from(sbom: Packagev3) -> Self {
+        Self {
+            name: sbom.name,
+            version: sbom.version,
+            checksum: sbom.checksum.map(|chksum| format!("sha256:{chksum}")),
+        }
+    }
 }
 
 #[cfg(test)]

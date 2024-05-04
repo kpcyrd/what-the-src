@@ -9,11 +9,11 @@
 {{sbom.strain}}
 <ul>
 {{#each packages}}
-<li>
+<li class="word-wrap">
 {{this.name}}
 ({{this.version}})
 {{#if this.checksum}}
-<code><a href="/artifact/sha256:{{this.checksum}}">sha256:{{this.checksum}}</a></code>
+<code><a href="/artifact/{{this.checksum}}">{{this.checksum}}</a></code>
 {{/if}}
 </li>
 {{/each}}
