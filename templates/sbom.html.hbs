@@ -18,7 +18,7 @@
 {{/if}}
 
 {{#if packages}}
-<h2>{{sbom.strain}}</h2>
+<h2>{{sbom.strain}} [<a href="/sbom/{{chksum}}.txt">raw</a>]</h2>
 <ul>
 {{#each packages}}
 <li class="word-wrap">
