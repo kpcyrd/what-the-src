@@ -3,6 +3,7 @@ use crate::db;
 use crate::errors::*;
 use crate::ingest;
 use fd_lock::RwLock;
+use std::io::BufRead;
 use std::process::Stdio;
 use std::str::FromStr;
 use tokio::fs;
@@ -103,6 +104,20 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         return Err(Error::GitFetchError(status));
     }
 
+    info!("Resolving FETCH_HEAD git ref");
+    let output = process::Command::new("git")
+        .args(["-C", &path, "rev-list", "-n1", "FETCH_HEAD"])
+        .output()
+        .await?;
+    if !output.status.success() {
+        return Err(Error::GitFetchError(status));
+    }
+    let Some(Ok(commit)) = output.stdout.lines().next() else {
+        let output = String::from_utf8_lossy(&output.stdout).into_owned();
+        return Err(Error::GitRevParseError(output));
+    };
+    info!("Resolved ref FETCH_HEAD to git commit: {commit:?}");
+
     info!("Taking `git archive` snapshot of FETCH_HEAD");
     let mut child = process::Command::new("git")
         .args([
@@ -119,12 +134,15 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    ingest::tar::stream_data(db, stdout, None).await?;
+    let summary = ingest::tar::stream_data(db, stdout, None).await?;
 
     let status = child.wait().await?;
     if !status.success() {
         return Err(Error::GitFetchError(status));
     }
+
+    db.insert_alias_from_to(&format!("git:{commit}"), &summary.inner_digests.sha256)
+        .await?;
 
     Ok(())
 }

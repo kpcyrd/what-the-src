@@ -58,6 +58,8 @@ pub enum Error {
     GitFetchTimeout,
     #[error("Error in git fetch operation")]
     GitFetchError(ExitStatus),
+    #[error("Failed to parse git rev-parse output")]
+    GitRevParseError(String),
     #[error("Failed to determine filename for Sources index")]
     AptIndexMissingSources,
     #[error("Unknown sbom strain: {0:?}")]
