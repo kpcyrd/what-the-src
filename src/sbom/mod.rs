@@ -1,5 +1,6 @@
 pub mod cargo;
 pub mod composer;
+pub mod go;
 pub mod npm;
 pub mod yarn;
 
@@ -13,6 +14,7 @@ use tokio::fs;
 pub enum Sbom {
     Cargo(cargo::CargoLock),
     Composer(composer::ComposerLock),
+    Go(go::GoSum),
     Npm(npm::PackageLockJson),
     Yarn(yarn::YarnLock),
 }
@@ -30,6 +32,7 @@ impl Sbom {
         match strain {
             cargo::STRAIN => Ok(Sbom::Cargo(cargo::CargoLock { data })),
             composer::STRAIN => Ok(Sbom::Composer(composer::ComposerLock { data })),
+            go::STRAIN => Ok(Sbom::Go(go::GoSum { data })),
             npm::STRAIN => Ok(Sbom::Npm(npm::PackageLockJson { data })),
             yarn::STRAIN => Ok(Sbom::Yarn(yarn::YarnLock { data })),
             _ => Err(Error::UnknownSbomStrain(strain.to_string())),
@@ -40,6 +43,7 @@ impl Sbom {
         match self {
             Sbom::Cargo(_) => cargo::STRAIN,
             Sbom::Composer(_) => composer::STRAIN,
+            Sbom::Go(_) => go::STRAIN,
             Sbom::Npm(_) => npm::STRAIN,
             Sbom::Yarn(_) => yarn::STRAIN,
         }
@@ -49,6 +53,7 @@ impl Sbom {
         match self {
             Sbom::Cargo(sbom) => &sbom.data,
             Sbom::Composer(sbom) => &sbom.data,
+            Sbom::Go(sbom) => &sbom.data,
             Sbom::Npm(sbom) => &sbom.data,
             Sbom::Yarn(sbom) => &sbom.data,
         }
@@ -89,6 +94,7 @@ pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
         Some("package-lock.json") => Some(npm::STRAIN),
         Some("yarn.lock") => Some(yarn::STRAIN),
         Some("composer.lock") => Some(composer::STRAIN),
+        Some("go.sum") => Some(go::STRAIN),
         _ => None,
     }
 }
