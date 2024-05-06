@@ -389,13 +389,15 @@ pub async fn run(args: &args::Web) -> Result<()> {
 mod tests {
     use super::*;
     use crate::ingest::tar::LinksTo;
+    use sqlx::types::chrono::Utc;
 
     #[test]
     fn test_render_archive() {
         let hbs = Handlebars::new().unwrap();
         let out = hbs.render_archive(&db::Artifact {
-            db_version: 0,
             chksum: "abcd".to_string(),
+            first_seen: Utc::now(),
+            last_imported: Utc::now(),
             files: Some(serde_json::to_value([
                 ingest::tar::Entry {
                     digest: None,
@@ -437,8 +439,9 @@ sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58  cmatrix
         let hbs = Handlebars::new().unwrap();
         let out = hbs
             .render_archive(&db::Artifact {
-                db_version: 0,
                 chksum: "abcd".to_string(),
+                first_seen: Utc::now(),
+                last_imported: Utc::now(),
                 files: Some(
                     serde_json::to_value([
                         ingest::tar::Entry {
@@ -475,8 +478,9 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
         let hbs = Handlebars::new().unwrap();
         let out = hbs
             .render_archive(&db::Artifact {
-                db_version: 0,
                 chksum: "abcd".to_string(),
+                first_seen: Utc::now(),
+                last_imported: Utc::now(),
                 files: Some(
                     serde_json::to_value([
                         ingest::tar::Entry {
