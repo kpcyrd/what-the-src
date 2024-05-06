@@ -2,6 +2,7 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::pkgbuild;
+use crate::sbom;
 use crate::utils;
 use async_compression::tokio::bufread::GzipDecoder;
 use futures::StreamExt;
@@ -16,7 +17,10 @@ pub struct Snapshot {
 }
 
 impl Snapshot {
-    pub async fn parse_from_tgz<R: AsyncRead + Unpin>(reader: R) -> Result<Snapshot> {
+    pub async fn parse_from_tgz<R: AsyncRead + Unpin>(
+        db: &db::Client,
+        reader: R,
+    ) -> Result<Snapshot> {
         let reader = io::BufReader::new(reader);
         let reader = GzipDecoder::new(reader);
         let mut tar = Archive::new(reader);
@@ -42,7 +46,16 @@ impl Snapshot {
                     entry.read_to_string(&mut buf).await?;
                     pkgbuild = Some(buf);
                 }
-                _ => (),
+                filename => {
+                    if let Some(strain) = sbom::detect_from_filename(filename) {
+                        let mut buf = String::new();
+                        entry.read_to_string(&mut buf).await?;
+
+                        let sbom = sbom::Sbom::new(strain, buf)?;
+                        let chksum = db.insert_sbom(&sbom).await?;
+                        info!("Inserted sbom {:?}: {chksum:?}", sbom.strain());
+                    }
+                }
             }
         }
 
@@ -183,21 +196,19 @@ pub fn task_for_url(url: &str) -> Option<Task> {
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
+    db: &db::Client,
     reader: R,
     vendor: &str,
     package: &str,
     version: &str,
     prefer_pkgbuild: bool,
-) -> Result<(Vec<db::Ref>, Vec<Task>)> {
-    let mut snapshot = Snapshot::parse_from_tgz(reader).await?;
+) -> Result<()> {
+    let mut snapshot = Snapshot::parse_from_tgz(db, reader).await?;
     if prefer_pkgbuild {
         snapshot.srcinfo = None;
     }
-    let entries = snapshot.source_entries()?;
 
-    let mut refs = Vec::new();
-    let mut tasks = Vec::new();
-    for entry in entries {
+    for entry in snapshot.source_entries()? {
         debug!("Found source entry: {entry:?}");
         let Some(chksum) = entry.preferred_chksum() else {
             continue;
@@ -205,7 +216,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
         if let Some(url) = &entry.url {
             if let Some(task) = task_for_url(url) {
-                tasks.push(task);
+                db.insert_task(&task).await?;
             }
         }
 
@@ -216,17 +227,19 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             version: version.to_string(),
             filename: entry.url,
         };
-        refs.push(r);
+        info!("insert: {r:?}");
+        db.insert_ref(&r).await?;
     }
 
-    Ok((refs, tasks))
+    Ok(())
 }
 
 pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
     let db = db::Client::create().await?;
 
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
-    let (refs, tasks) = stream_data(
+    stream_data(
+        &db,
         reader,
         &args.vendor,
         &args.package,
@@ -234,15 +247,6 @@ pub async fn run(args: &args::IngestPacmanSnapshot) -> Result<()> {
         args.prefer_pkgbuild,
     )
     .await?;
-
-    for task in tasks {
-        db.insert_task(&task).await?;
-    }
-
-    for r in refs {
-        info!("insert: {r:?}");
-        db.insert_ref(&r).await?;
-    }
 
     Ok(())
 }

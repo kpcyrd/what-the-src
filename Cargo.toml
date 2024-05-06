@@ -12,6 +12,7 @@ async-compression = { version = "0.4.8", features = ["tokio", "gzip", "xz", "bzi
 async-stream = "0.3.5"
 blake2 = "0.10.6"
 clap = { version = "4.5.4", features = ["derive", "env"] }
+data-encoding = "2.6.0"
 diffy-fork-filenames = "0.4.0"
 digest = "0.10.7"
 dotenvy = "0.15.7"
@@ -28,13 +29,15 @@ serde = { version = "1.0.197", features = ["derive"] }
 serde-xml-rs = "0.6.0"
 serde_json = "1.0.115"
 sha2 = "0.10.8"
-sqlx = { version = "0.7.4", features = ["runtime-tokio"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "chrono"] }
 sqlx-migrate = { version = "0.7.1", features = ["postgres"] }
 srcinfo = "1.1.0"
 thiserror = "1.0.58"
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread", "io-std", "fs", "process"] }
 tokio-tar = "0.3.1"
 tokio-util = "0.7.10"
+toml = "0.8.12"
 warp = "0.3.7"
 warp-embed = "0.5.0"
+yarn-lock-parser = "0.7.0"
 yash-syntax = "0.8.0"

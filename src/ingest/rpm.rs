@@ -1,27 +1,25 @@
 use crate::args;
-use crate::chksums::Checksums;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
 use crate::utils;
 use futures::StreamExt;
 use std::process::Stdio;
+use std::sync::Arc;
 use tokio::io::{self, AsyncRead};
 use tokio::process::Command;
 use tokio_tar::{Archive, EntryType};
 
-pub type Item = (db::Ref, Checksums, Checksums, Vec<ingest::tar::Entry>);
-
 pub async fn read_routine<R: AsyncRead + Unpin>(
+    db: &db::Client,
     reader: R,
     vendor: String,
     package: String,
     version: String,
-) -> Result<Vec<Item>> {
+) -> Result<()> {
     let mut tar = Archive::new(reader);
     let mut entries = tar.entries()?;
 
-    let mut out = Vec::new();
     while let Some(entry) = entries.next().await {
         let entry = entry?;
         let filename = {
@@ -53,31 +51,28 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
             continue;
         };
 
-        let (inner_digests, outer_digests, files) =
-            ingest::tar::stream_data(entry, compression).await?;
+        let summary = ingest::tar::stream_data(db, entry, compression).await?;
 
-        out.push((
-            db::Ref {
-                chksum: outer_digests.sha256.clone(),
-                vendor: vendor.to_string(),
-                package: package.to_string(),
-                version: version.to_string(),
-                filename: Some(filename.to_string()),
-            },
-            inner_digests,
-            outer_digests,
-            files,
-        ));
+        let r = db::Ref {
+            chksum: summary.outer_digests.sha256.clone(),
+            vendor: vendor.to_string(),
+            package: package.to_string(),
+            version: version.to_string(),
+            filename: Some(filename.to_string()),
+        };
+        info!("insert ref: {r:?}");
+        db.insert_ref(&r).await?;
     }
-    Ok(out)
+    Ok(())
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
+    db: Arc<db::Client>,
     mut reader: R,
     vendor: String,
     package: String,
     version: String,
-) -> Result<Vec<Item>> {
+) -> Result<()> {
     let mut child = Command::new("bsdtar")
         .args(["-c", "@-"])
         .stdin(Stdio::piped())
@@ -92,7 +87,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     };
 
     let stdout = child.stdout.take().unwrap();
-    let reader = tokio::spawn(async move { read_routine(stdout, vendor, package, version).await });
+    let reader =
+        tokio::spawn(async move { read_routine(&db, stdout, vendor, package, version).await });
 
     let (reader, writer) = tokio::join!(reader, writer);
     debug!("Sent {} bytes to child process", writer?);
@@ -106,27 +102,17 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
 pub async fn run(args: &args::IngestRpm) -> Result<()> {
     let db = db::Client::create().await?;
+    let db = Arc::new(db);
 
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
-    let items = stream_data(
+    stream_data(
+        db.clone(),
         reader,
         args.vendor.to_string(),
         args.package.to_string(),
         args.version.to_string(),
     )
     .await?;
-
-    for (r, inner_digests, outer_digests, files) in items {
-        info!("insert artifact: {:?}", inner_digests.sha256);
-        db.insert_artifact(&inner_digests.sha256, &files).await?;
-        db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
-            .await?;
-        db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
-            .await?;
-
-        info!("insert ref: {r:?}");
-        db.insert_ref(&r).await?;
-    }
 
     Ok(())
 }

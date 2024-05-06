@@ -62,3 +62,9 @@ pub struct Checksums {
     pub sha512: String,
     pub blake2b: String,
 }
+
+pub fn sha256(data: &[u8]) -> String {
+    let mut sha256 = Sha256::new();
+    sha256.update(data);
+    format!("sha256:{}", hex::encode(sha256.finalize()))
+}

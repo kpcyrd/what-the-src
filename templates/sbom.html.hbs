@@ -1,0 +1,40 @@
+{{#*inline "title"}}
+{{chksum}} - What the src?!
+{{/inline}}
+
+{{#*inline "page"}}
+<h1 class="title-chksum word-wrap">{{chksum}}</h1>
+
+{{#if sbom_refs}}
+<h2>Found in archives</h2>
+<ul>
+{{#each sbom_refs}}
+<li class="word-wrap">
+<code><a href="/artifact/{{this.from_archive}}">{{this.from_archive}}</a></code>
+{{this.path}}
+</li>
+{{/each}}
+</ul>
+{{/if}}
+
+{{#if packages}}
+<h2>{{sbom.strain}} [<a href="/sbom/{{chksum}}.txt">raw</a>]</h2>
+<ul>
+{{#each packages}}
+<li class="word-wrap">
+{{this.name}}
+({{this.version}})
+{{#if this.checksum}}
+<code><a href="/artifact/{{this.checksum}}">{{this.checksum}}</a></code>
+{{/if}}
+</li>
+{{/each}}
+</ul>
+{{else}}
+<pre id="content" class="x-overflow">
+{{sbom.data}}
+</pre>
+{{/if}}
+{{/inline}}
+
+{{> base.html.hbs }}

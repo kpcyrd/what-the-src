@@ -19,6 +19,8 @@ pub enum Error {
     #[error(transparent)]
     Xml(#[from] serde_xml_rs::Error),
     #[error(transparent)]
+    Toml(#[from] toml::de::Error),
+    #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),
@@ -29,7 +31,11 @@ pub enum Error {
     #[error(transparent)]
     Rpm(#[from] rpm::Error),
     #[error(transparent)]
+    YarnLock(#[from] yarn_lock_parser::YarnLockError),
+    #[error(transparent)]
     ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    Base64(#[from] data_encoding::DecodeError),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]
@@ -52,8 +58,12 @@ pub enum Error {
     GitFetchTimeout,
     #[error("Error in git fetch operation")]
     GitFetchError(ExitStatus),
+    #[error("Failed to parse git rev-parse output")]
+    GitRevParseError(String),
     #[error("Failed to determine filename for Sources index")]
     AptIndexMissingSources,
+    #[error("Unknown sbom strain: {0:?}")]
+    UnknownSbomStrain(String),
 }
 
 // TODO: consider fixing this

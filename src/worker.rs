@@ -6,6 +6,7 @@ use crate::git;
 use crate::ingest;
 use crate::utils;
 use futures::TryStreamExt;
+use std::sync::Arc;
 use tokio::io;
 use tokio::time::{self, Duration};
 use tokio_util::io::StreamReader;
@@ -30,7 +31,7 @@ fn normalize_archlinux_gitlab_names(package: &str) -> String {
 }
 
 pub struct Worker {
-    db: db::Client,
+    db: Arc<db::Client>,
     http: reqwest::Client,
     git_tmp: String,
 }
@@ -75,19 +76,7 @@ impl Worker {
                     None
                 };
 
-                let (inner_digests, outer_digests, files) =
-                    ingest::tar::stream_data(&body[..], compression).await?;
-
-                info!("digests={:?}", inner_digests);
-                self.db
-                    .insert_artifact(&inner_digests.sha256, &files)
-                    .await?;
-                self.db
-                    .register_chksums_aliases(&inner_digests, &inner_digests.sha256)
-                    .await?;
-                self.db
-                    .register_chksums_aliases(&outer_digests, &inner_digests.sha256)
-                    .await?;
+                ingest::tar::stream_data(&self.db, &body[..], compression).await?;
             }
             TaskData::PacmanGitSnapshot {
                 vendor,
@@ -103,17 +92,8 @@ impl Worker {
                 let stream = resp.bytes_stream();
                 let reader =
                     StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
-                let (refs, tasks) =
-                    ingest::pacman::stream_data(reader, &vendor, &package, &version, false).await?;
-
-                for task in tasks {
-                    self.db.insert_task(&task).await?;
-                }
-
-                for r in refs {
-                    info!("insert: {r:?}");
-                    self.db.insert_ref(&r).await?;
-                }
+                ingest::pacman::stream_data(&self.db, reader, &vendor, &package, &version, false)
+                    .await?;
 
                 self.db
                     .insert_package(&db::Package {
@@ -141,29 +121,14 @@ impl Worker {
                 let reader =
                     StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
 
-                let items = ingest::rpm::stream_data(
+                ingest::rpm::stream_data(
+                    self.db.clone(),
                     reader,
                     vendor.to_string(),
                     package.to_string(),
                     version.to_string(),
                 )
                 .await?;
-
-                for (r, inner_digests, outer_digests, files) in items {
-                    info!("insert artifact: {:?}", inner_digests.sha256);
-                    self.db
-                        .insert_artifact(&inner_digests.sha256, &files)
-                        .await?;
-                    self.db
-                        .register_chksums_aliases(&inner_digests, &inner_digests.sha256)
-                        .await?;
-                    self.db
-                        .register_chksums_aliases(&outer_digests, &inner_digests.sha256)
-                        .await?;
-
-                    info!("insert ref: {r:?}");
-                    self.db.insert_ref(&r).await?;
-                }
 
                 self.db
                     .insert_package(&db::Package {
@@ -234,14 +199,7 @@ impl Worker {
             }
             TaskData::GitSnapshot { url } => {
                 let git = url.parse::<git::GitUrl>()?;
-
-                let (chksums, files) = git::take_snapshot(&git, &self.git_tmp).await?;
-                info!("digests={chksums:?}");
-
-                self.db.insert_artifact(&chksums.sha256, &files).await?;
-                self.db
-                    .register_chksums_aliases(&chksums, &chksums.sha256)
-                    .await?;
+                git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
             }
         }
 
@@ -259,7 +217,7 @@ pub async fn run(args: &args::Worker) -> Result<()> {
     let http = http.build()?;
 
     let worker = Worker {
-        db,
+        db: Arc::new(db),
         http,
         git_tmp: args.git_tmp.to_string(),
     };

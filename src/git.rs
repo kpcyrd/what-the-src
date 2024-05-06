@@ -1,9 +1,9 @@
 use crate::args;
-use crate::chksums::Checksums;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
 use fd_lock::RwLock;
+use std::io::BufRead;
 use std::process::Stdio;
 use std::str::FromStr;
 use tokio::fs;
@@ -49,10 +49,7 @@ impl FromStr for GitUrl {
     }
 }
 
-pub async fn take_snapshot(
-    git: &GitUrl,
-    tmp: &str,
-) -> Result<(Checksums, Vec<ingest::tar::Entry>)> {
+pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<()> {
     fs::create_dir_all(tmp).await?;
     let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
@@ -107,6 +104,20 @@ pub async fn take_snapshot(
         return Err(Error::GitFetchError(status));
     }
 
+    info!("Resolving FETCH_HEAD git ref");
+    let output = process::Command::new("git")
+        .args(["-C", &path, "rev-list", "-n1", "FETCH_HEAD"])
+        .output()
+        .await?;
+    if !output.status.success() {
+        return Err(Error::GitFetchError(status));
+    }
+    let Some(Ok(commit)) = output.stdout.lines().next() else {
+        let output = String::from_utf8_lossy(&output.stdout).into_owned();
+        return Err(Error::GitRevParseError(output));
+    };
+    info!("Resolved ref FETCH_HEAD to git commit: {commit:?}");
+
     info!("Taking `git archive` snapshot of FETCH_HEAD");
     let mut child = process::Command::new("git")
         .args([
@@ -123,25 +134,23 @@ pub async fn take_snapshot(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let (chksums, _chksums, files) = ingest::tar::stream_data(stdout, None).await?;
+    let summary = ingest::tar::stream_data(db, stdout, None).await?;
 
     let status = child.wait().await?;
     if !status.success() {
         return Err(Error::GitFetchError(status));
     }
 
-    Ok((chksums, files))
+    db.insert_alias_from_to(&format!("git:{commit}"), &summary.inner_digests.sha256)
+        .await?;
+
+    Ok(())
 }
 
 pub async fn run(args: &args::GitArchive) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let (chksums, files) = take_snapshot(&args.git, &args.tmp).await?;
-    info!("digests={chksums:?}");
-
-    db.insert_artifact(&chksums.sha256, &files).await?;
-    db.register_chksums_aliases(&chksums, &chksums.sha256)
-        .await?;
+    take_snapshot(&db, &args.git, &args.tmp).await?;
 
     Ok(())
 }

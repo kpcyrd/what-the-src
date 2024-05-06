@@ -1,15 +1,15 @@
+use crate::chksums;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
+use sqlx::types::chrono::{DateTime, Utc};
 use sqlx::Pool;
 use std::borrow::Cow;
 use std::env;
-
-// keep track if we may need to reprocess an entry
-const DB_VERSION: i16 = 0;
 
 const RETRY_LIMIT: i16 = 5;
 
@@ -38,12 +38,13 @@ impl Client {
     pub async fn insert_artifact(&self, chksum: &str, files: &[ingest::tar::Entry]) -> Result<()> {
         let files = serde_json::to_value(files)?;
         let _result = sqlx::query(
-            "INSERT INTO artifacts (db_version, chksum, files)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (chksum) DO UPDATE
-            SET db_version = EXCLUDED.db_version, files = EXCLUDED.files",
+            "INSERT INTO artifacts (chksum, last_imported, files)
+            VALUES ($1, now(), $2)
+            ON CONFLICT (chksum) DO UPDATE SET
+            last_imported = EXCLUDED.last_imported,
+            files = EXCLUDED.files
+            ",
         )
-        .bind(DB_VERSION)
         .bind(chksum)
         .bind(files)
         .execute(&self.pool)
@@ -119,10 +120,11 @@ impl Client {
 
     pub async fn insert_ref(&self, obj: &Ref) -> Result<()> {
         let _result = sqlx::query(
-            "INSERT INTO refs (chksum, vendor, package, version, filename)
-            VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (chksum, vendor, package, version) DO UPDATE
-            SET filename = COALESCE(EXCLUDED.filename, refs.filename)",
+            "INSERT INTO refs (chksum, vendor, package, version, filename, last_seen)
+            VALUES ($1, $2, $3, $4, $5, now())
+            ON CONFLICT (chksum, vendor, package, version) DO UPDATE SET
+            last_seen = EXCLUDED.last_seen,
+            filename = COALESCE(EXCLUDED.filename, refs.filename)",
         )
         .bind(&obj.chksum)
         .bind(&obj.vendor)
@@ -300,12 +302,104 @@ impl Client {
 
         Ok(rows)
     }
+
+    pub async fn insert_sbom(&self, sbom: &sbom::Sbom) -> Result<String> {
+        let chksum = chksums::sha256(sbom.data().as_bytes());
+        let _result = sqlx::query(
+            "INSERT INTO sboms (strain, chksum, data)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(sbom.strain())
+        .bind(&chksum)
+        .bind(sbom.data())
+        .execute(&self.pool)
+        .await?;
+        Ok(chksum)
+    }
+
+    pub async fn get_sbom(&self, chksum: &str) -> Result<Option<Sbom>> {
+        let result = sqlx::query_as::<_, Sbom>("SELECT * FROM sboms WHERE chksum = $1")
+            .bind(chksum)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(result)
+    }
+
+    pub async fn get_sbom_with_strain(&self, chksum: &str, strain: &str) -> Result<Option<Sbom>> {
+        let result =
+            sqlx::query_as::<_, Sbom>("SELECT * FROM sboms WHERE chksum = $1 AND strain = $2")
+                .bind(chksum)
+                .bind(strain)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(result)
+    }
+
+    pub async fn insert_sbom_ref(
+        &self,
+        archive_digest: &str,
+        sbom_strain: &str,
+        sbom_digest: &str,
+        path: &str,
+    ) -> Result<()> {
+        let _result = sqlx::query(
+            "INSERT INTO sbom_refs (from_archive, sbom_strain, sbom_chksum, path)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(archive_digest)
+        .bind(sbom_strain)
+        .bind(sbom_digest)
+        .bind(path)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_sbom_refs_for_archive(&self, archive_digest: &str) -> Result<Vec<SbomRef>> {
+        let mut result = sqlx::query_as::<_, SbomRef>(
+            "SELECT *
+            FROM sbom_refs
+            WHERE from_archive = $1
+            ORDER BY path ASC",
+        )
+        .bind(archive_digest)
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
+    }
+
+    pub async fn get_sbom_refs_for_sbom(&self, sbom: &Sbom) -> Result<Vec<SbomRef>> {
+        let mut result = sqlx::query_as::<_, SbomRef>(
+            "SELECT *
+            FROM sbom_refs
+            WHERE sbom_strain = $1 AND sbom_chksum = $2
+            ORDER BY from_archive ASC, path ASC",
+        )
+        .bind(&sbom.strain)
+        .bind(&sbom.chksum)
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
 pub struct Artifact {
-    pub db_version: i16,
     pub chksum: String,
+    #[serde(skip)]
+    pub first_seen: DateTime<Utc>,
+    #[serde(skip)]
+    pub last_imported: DateTime<Utc>,
     pub files: Option<serde_json::Value>,
 }
 
@@ -314,6 +408,21 @@ pub struct Alias {
     pub alias_from: String,
     pub alias_to: String,
     pub reason: Option<String>,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct Sbom {
+    pub chksum: String,
+    pub strain: String,
+    pub data: String,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct SbomRef {
+    pub from_archive: String,
+    pub sbom_strain: String,
+    pub sbom_chksum: String,
+    pub path: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

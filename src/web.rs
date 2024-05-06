@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use diffy_fork_filenames as diffy;
 use log::error;
 use rust_embed::RustEmbed;
@@ -13,7 +14,7 @@ use std::result;
 use std::sync::Arc;
 use warp::reject;
 use warp::{
-    http::{header::CACHE_CONTROL, HeaderValue, StatusCode},
+    http::{header, HeaderValue, StatusCode},
     Filter,
 };
 
@@ -54,7 +55,7 @@ impl<'a> Handlebars<'a> {
 fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
     warp::reply::with_header(
         reply,
-        CACHE_CONTROL,
+        header::CACHE_CONTROL,
         HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300"),
     )
 }
@@ -111,9 +112,12 @@ async fn artifact(
         return Err(reject::not_found());
     };
 
+    let sbom_refs = db.get_sbom_refs_for_archive(resolved_chksum).await?;
+
     if json {
         Ok(Box::new(warp::reply::json(&json!({
             "files": artifact.files,
+            "sbom_refs": sbom_refs,
         }))))
     } else {
         let refs = db.get_all_refs_for(&artifact.chksum).await?;
@@ -129,8 +133,56 @@ async fn artifact(
                     "chksum": chksum,
                     "alias": alias,
                     "refs": refs,
+                    "sbom_refs": sbom_refs,
                     "files": files,
                     "suspecting_autotools": suspecting_autotools,
+                }),
+            )
+            .map_err(Error::from)?;
+        Ok(Box::new(warp::reply::html(html)))
+    }
+}
+
+async fn sbom(
+    hbs: Arc<Handlebars<'_>>,
+    db: Arc<db::Client>,
+    chksum: String,
+) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let (chksum, txt) = chksum
+        .strip_suffix(".txt")
+        .map(|chksum| (chksum, true))
+        .unwrap_or((chksum.as_str(), false));
+
+    let Some(sbom) = db.get_sbom(chksum).await? else {
+        return Err(reject::not_found());
+    };
+
+    let sbom_refs = db.get_sbom_refs_for_sbom(&sbom).await?;
+
+    if txt {
+        let mut res = warp::reply::Response::new(sbom.data.into());
+        res.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
+        Ok(Box::new(res))
+    } else {
+        let packages = match sbom::Sbom::try_from(&sbom).and_then(|sbom| sbom.to_packages()) {
+            Ok(packages) => packages,
+            Err(err) => {
+                warn!("Failed to parse package lock: {err:#}");
+                Vec::new()
+            }
+        };
+
+        let html = hbs
+            .render(
+                "sbom.html.hbs",
+                &json!({
+                    "sbom": sbom,
+                    "chksum": chksum,
+                    "sbom_refs": sbom_refs,
+                    "packages": packages,
                 }),
             )
             .map_err(Error::from)?;
@@ -266,6 +318,14 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::end())
         .and_then(artifact)
         .map(cache_control);
+    let sbom = warp::get()
+        .and(hbs.clone())
+        .and(db.clone())
+        .and(warp::path("sbom"))
+        .and(warp::path::param())
+        .and(warp::path::end())
+        .and_then(sbom)
+        .map(cache_control);
     let search = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -311,6 +371,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(
             index
                 .or(artifact)
+                .or(sbom)
                 .or(search)
                 .or(diff_original)
                 .or(diff_sorted)
@@ -328,13 +389,15 @@ pub async fn run(args: &args::Web) -> Result<()> {
 mod tests {
     use super::*;
     use crate::ingest::tar::LinksTo;
+    use sqlx::types::chrono::Utc;
 
     #[test]
     fn test_render_archive() {
         let hbs = Handlebars::new().unwrap();
         let out = hbs.render_archive(&db::Artifact {
-            db_version: 0,
             chksum: "abcd".to_string(),
+            first_seen: Utc::now(),
+            last_imported: Utc::now(),
             files: Some(serde_json::to_value([
                 ingest::tar::Entry {
                     digest: None,
@@ -376,8 +439,9 @@ sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58  cmatrix
         let hbs = Handlebars::new().unwrap();
         let out = hbs
             .render_archive(&db::Artifact {
-                db_version: 0,
                 chksum: "abcd".to_string(),
+                first_seen: Utc::now(),
+                last_imported: Utc::now(),
                 files: Some(
                     serde_json::to_value([
                         ingest::tar::Entry {
@@ -414,8 +478,9 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
         let hbs = Handlebars::new().unwrap();
         let out = hbs
             .render_archive(&db::Artifact {
-                db_version: 0,
                 chksum: "abcd".to_string(),
+                first_seen: Utc::now(),
+                last_imported: Utc::now(),
                 files: Some(
                     serde_json::to_value([
                         ingest::tar::Entry {
