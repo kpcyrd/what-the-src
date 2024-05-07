@@ -37,3 +37,9 @@ what-the-src plumbing sync-rpm --vendor opensuse https://ftp.halifax.rwth-aachen
 ```
 what-the-src plumbing sync-gentoo --vendor gentoo --fetch https://github.com/gentoo-mirror/gentoo/archive/refs/heads/master.tar.gz
 ```
+
+### Sync Homebrew
+
+```
+what-the-src plumbing sync-homebrew --vendor homebrew --fetch https://formulae.brew.sh/api/formula.json
+```

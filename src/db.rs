@@ -480,6 +480,10 @@ impl From<Ref> for RefView {
                 let href = format!("https://packages.gentoo.org/packages/{}", r.package);
                 (Cow::Borrowed("Gentoo"), Some(href))
             }
+            "homebrew" => {
+                let href = format!("https://formulae.brew.sh/formula/{}", r.package);
+                (Cow::Borrowed("Homebrew"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 

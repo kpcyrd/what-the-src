@@ -49,6 +49,7 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncRpm(args)) => sync::rpm::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncGentoo(args)) => sync::gentoo::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncHomebrew(args)) => sync::homebrew::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::GitArchive(args)) => git::run(&args).await,
         SubCommand::Plumbing(Plumbing::Reindex(args)) => reindex::run(&args).await,
