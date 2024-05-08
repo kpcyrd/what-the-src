@@ -29,7 +29,7 @@ pub async fn run(args: &args::Reindex) -> Result<()> {
 
         if let Some(age) = &args.age {
             if let Some(artifact) = db.resolve_artifact(&r.chksum).await? {
-                let delta = Utc::now().signed_duration_since(&artifact.last_imported);
+                let delta = Utc::now().signed_duration_since(artifact.last_imported);
                 if delta.num_days() < *age {
                     continue;
                 }
