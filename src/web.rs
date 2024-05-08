@@ -332,7 +332,8 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path("search"))
         .and(warp::path::end())
         .and(warp::query::<SearchQuery>())
-        .and_then(search);
+        .and_then(search)
+        .map(cache_control);
     let diff_original = warp::get()
         .and(hbs.clone())
         .and(db.clone())

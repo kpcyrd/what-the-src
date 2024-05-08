@@ -199,4 +199,10 @@ pub struct Reindex {
     /// Only queue urls containing this string
     #[arg(long)]
     pub filter: Option<String>,
+    /// Upper limit of tasks to schedule
+    #[arg(long)]
+    pub limit: Option<usize>,
+    /// Only reindex items that haven't been imported the last X days
+    #[arg(long)]
+    pub age: Option<i64>,
 }
