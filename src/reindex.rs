@@ -9,6 +9,7 @@ pub async fn run(args: &args::Reindex) -> Result<()> {
 
     let refs = db.get_all_refs().await?;
     let mut scheduled = 0;
+    let now = Utc::now();
     for r in refs {
         let Some(filename) = &r.filename else {
             continue;
@@ -29,7 +30,7 @@ pub async fn run(args: &args::Reindex) -> Result<()> {
 
         if let Some(age) = &args.age {
             if let Some(artifact) = db.resolve_artifact(&r.chksum).await? {
-                let delta = Utc::now().signed_duration_since(artifact.last_imported);
+                let delta = now.signed_duration_since(artifact.last_imported);
                 if delta.num_days() < *age {
                     continue;
                 }
