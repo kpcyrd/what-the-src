@@ -23,6 +23,11 @@ use warp::{
 
 const SEARCH_LIMIT: usize = 150;
 
+const CACHE_CONTROL_DEFAULT: HeaderValue =
+    HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300");
+const CACHE_CONTROL_SHORT: HeaderValue =
+    HeaderValue::from_static("max-age=10, stale-while-revalidate=20, stale-if-error=60");
+
 #[derive(RustEmbed)]
 #[folder = "templates"]
 #[include = "*.hbs"]
@@ -66,12 +71,8 @@ impl<'a> Handlebars<'a> {
     }
 }
 
-fn cache_control(reply: impl warp::Reply) -> impl warp::Reply {
-    warp::reply::with_header(
-        reply,
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300"),
-    )
+fn cache_control(reply: impl warp::Reply, value: HeaderValue) -> impl warp::Reply {
+    warp::reply::with_header(reply, header::CACHE_CONTROL, value)
 }
 
 async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
@@ -344,7 +345,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(hbs.clone())
         .and(warp::path::end())
         .and_then(index)
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let artifact = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -352,7 +353,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(artifact)
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let sbom = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -360,7 +361,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(sbom)
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let search = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -368,14 +369,14 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::end())
         .and(warp::query::<SearchQuery>())
         .and_then(search)
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
     let stats = warp::get()
         .and(hbs.clone())
         .and(db.clone())
         .and(warp::path("stats"))
         .and(warp::path::end())
         .and_then(stats)
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
     let diff_original = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -384,7 +385,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, false, false))
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let diff_sorted = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -393,7 +394,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, true, false))
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let diff_sorted_trimmed = warp::get()
         .and(hbs)
         .and(db)
@@ -402,13 +403,13 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::param())
         .and(warp::path::end())
         .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, true, true))
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let style = warp::get()
         .and(warp::path("assets"))
         .and(warp::path("style.css"))
         .and(warp::path::end())
         .and(warp_embed::embed_one(&Assets, "style.css"))
-        .map(cache_control);
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
 
     let routes = warp::any()
         .and(
