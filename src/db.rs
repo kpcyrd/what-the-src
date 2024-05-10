@@ -407,7 +407,7 @@ impl Client {
 
     pub async fn stats_import_dates(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
-            "SELECT to_char(last_imported, 'YYYY-MM-DD') date, count(1) num
+            "SELECT to_date_char(last_imported) date, count(*) num
             FROM artifacts
             GROUP BY date
             ORDER by date",
@@ -418,7 +418,7 @@ impl Client {
 
     pub async fn stats_pending_tasks(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
-            "SELECT split_part(key, ':', 1) k, count(1) num
+            "SELECT split_part(key, ':', 1) k, count(*) num
             FROM tasks
             WHERE retries < $1
             GROUP BY k

@@ -5,6 +5,13 @@ Stats - What the src?!
 {{#*inline "page"}}
 <h1>📊 Statistics and Metrics</h1>
 
+<h2>Artifacts</h2>
+<pre>
+{{#each total_artifacts}}
+{{pad_right 'Known artifacts' 17}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+
 <h2>Artifact import dates</h2>
 <pre>
 {{#each import_dates}}

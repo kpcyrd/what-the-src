@@ -246,8 +246,17 @@ async fn stats(
 
     let mut data = HashMap::new();
     while let Some(row) = set.join_next().await {
-        let Ok((key, result)) = row else { continue };
-        data.insert(key, result?);
+        let Ok((key, values)) = row else { continue };
+        let values = values?;
+
+        // for import_dates, also calculate and insert sum
+        if key == "import_dates" {
+            let sum = values.iter().map(|(_, v)| v).sum();
+            data.insert("total_artifacts", vec![("".to_string(), sum)]);
+        }
+
+        // add regular data
+        data.insert(key, values);
     }
 
     let html = hbs.render("stats.html.hbs", &data).map_err(Error::from)?;
