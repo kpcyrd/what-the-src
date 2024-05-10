@@ -5,13 +5,16 @@ use crate::ingest;
 use crate::sbom;
 use diffy_fork_filenames as diffy;
 use log::error;
+use num_format::{Locale, ToFormattedString};
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::Infallible;
 use std::result;
 use std::sync::Arc;
+use tokio::task::JoinSet;
 use warp::reject;
 use warp::{
     http::{header, HeaderValue, StatusCode},
@@ -30,11 +33,22 @@ struct Handlebars<'a> {
     hbs: handlebars::Handlebars<'a>,
 }
 
+handlebars::handlebars_helper!(format_num: |v: i64, width: i64| {
+    let v = v.to_formatted_string(&Locale::en);
+    format!("{:>width$}", v, width=width as usize)
+});
+
+handlebars::handlebars_helper!(pad_right: |v: String, width: i64| {
+    format!("{:<width$}", v, width=width as usize)
+});
+
 impl<'a> Handlebars<'a> {
     fn new() -> Result<Handlebars<'a>> {
         let mut hbs = handlebars::Handlebars::new();
         hbs.set_prevent_indent(true);
         hbs.register_embed_templates::<Assets>()?;
+        hbs.register_helper("format_num", Box::new(format_num));
+        hbs.register_helper("pad_right", Box::new(pad_right));
         Ok(Handlebars { hbs })
     }
 
@@ -218,6 +232,27 @@ async fn search(
     Ok(Box::new(warp::reply::html(html)))
 }
 
+async fn stats(
+    hbs: Arc<Handlebars<'_>>,
+    db: Arc<db::Client>,
+) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let mut set = JoinSet::new();
+    {
+        let db = db.clone();
+        set.spawn(async move { ("import_dates", db.stats_import_dates().await) });
+    }
+    set.spawn(async move { ("pending_tasks", db.stats_pending_tasks().await) });
+
+    let mut data = HashMap::new();
+    while let Some(row) = set.join_next().await {
+        let Ok((key, result)) = row else { continue };
+        data.insert(key, result?);
+    }
+
+    let html = hbs.render("stats.html.hbs", &data).map_err(Error::from)?;
+    Ok(Box::new(warp::reply::html(html)))
+}
+
 fn process_files_list(
     value: Option<serde_json::Value>,
     trimmed: bool,
@@ -334,6 +369,13 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::query::<SearchQuery>())
         .and_then(search)
         .map(cache_control);
+    let stats = warp::get()
+        .and(hbs.clone())
+        .and(db.clone())
+        .and(warp::path("stats"))
+        .and(warp::path::end())
+        .and_then(stats)
+        .map(cache_control);
     let diff_original = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -374,6 +416,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
                 .or(artifact)
                 .or(sbom)
                 .or(search)
+                .or(stats)
                 .or(diff_original)
                 .or(diff_sorted)
                 .or(diff_sorted_trimmed)

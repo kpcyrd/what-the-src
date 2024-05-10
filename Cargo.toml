@@ -22,6 +22,7 @@ futures = "0.3.30"
 handlebars = { version = "5.1.2", features = ["rust-embed"] }
 hex = "0.4.3"
 log = "0.4.21"
+num-format = "0.4.4"
 reqwest = { version = "0.12.3", default-features = false, features = ["rustls-tls-webpki-roots", "stream", "socks"] }
 rpm = { version = "0.14.0", default-features = false }
 rust-embed = "8.3.0"
