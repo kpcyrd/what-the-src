@@ -160,7 +160,7 @@ impl Worker {
                     }
                     "wolfi" => {
                         let url =
-                            format!("https://github.com/wolfi-dev/os/blob/{commit}/{origin}.yaml");
+                            format!("https://github.com/wolfi-dev/os/raw/{commit}/{origin}.yaml");
 
                         info!("Fetching wolfi yaml: {url:?}");
                         let resp = self.http.get(&url).send().await?.error_for_status()?;

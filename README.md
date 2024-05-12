@@ -43,3 +43,9 @@ what-the-src plumbing sync-gentoo --vendor gentoo --fetch https://github.com/gen
 ```
 what-the-src plumbing sync-homebrew --vendor homebrew --fetch https://formulae.brew.sh/api/formula.json
 ```
+
+### Sync Wolfi OS
+
+```
+what-the-src plumbing sync-alpine --vendor wolfi --fetch https://packages.wolfi.dev/os/x86_64/APKINDEX.tar.gz
+```
