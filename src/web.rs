@@ -23,8 +23,10 @@ use warp::{
 
 const SEARCH_LIMIT: usize = 150;
 
+#[allow(clippy::declare_interior_mutable_const)]
 const CACHE_CONTROL_DEFAULT: HeaderValue =
     HeaderValue::from_static("max-age=600, stale-while-revalidate=300, stale-if-error=300");
+#[allow(clippy::declare_interior_mutable_const)]
 const CACHE_CONTROL_SHORT: HeaderValue =
     HeaderValue::from_static("max-age=10, stale-while-revalidate=20, stale-if-error=60");
 

@@ -21,5 +21,9 @@ pub async fn fetch_or_open(path: &str, should_fetch: bool) -> Result<Box<dyn Asy
 }
 
 pub fn is_possible_tar_artifact(url: &str) -> bool {
-    url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz")
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        false
+    } else {
+        url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz")
+    }
 }

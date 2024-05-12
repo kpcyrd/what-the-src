@@ -520,6 +520,13 @@ impl From<Ref> for RefView {
                 let href = format!("https://formulae.brew.sh/formula/{}", r.package);
                 (Cow::Borrowed("Homebrew"), Some(href))
             }
+            "wolfi" => {
+                let href = format!(
+                    "https://github.com/wolfi-dev/os/blob/main/{}.yaml",
+                    r.package
+                );
+                (Cow::Borrowed("Wolfi OS"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
@@ -579,9 +586,10 @@ pub enum TaskData {
         version: String,
         url: String,
     },
-    AlpineGitApkbuild {
+    #[serde(alias = "AlpineGitApkbuild")]
+    ApkbuildGit {
         vendor: String,
-        repo: String,
+        repo: Option<String>,
         origin: String,
         version: String,
         commit: String,

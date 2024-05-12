@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
             ingest::pacman::run(&args).await
         }
         SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestWolfi(args)) => ingest::wolfi::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestSbom(args)) => sbom::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,

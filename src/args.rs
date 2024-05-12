@@ -45,6 +45,7 @@ pub enum Plumbing {
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     IngestRpm(IngestRpm),
     IngestSbom(IngestSbom),
+    IngestWolfi(IngestWolfi),
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
@@ -95,6 +96,20 @@ pub struct IngestRpm {
     pub file: String,
 }
 
+/// Ingest a wolfi yaml
+#[derive(Debug, Parser)]
+pub struct IngestWolfi {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub package: String,
+    #[arg(long)]
+    pub version: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
 /// Ingest a dependency lockfile
 #[derive(Debug, Parser)]
 pub struct IngestSbom {
@@ -109,7 +124,7 @@ pub struct SyncAlpine {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]
-    pub repo: String,
+    pub repo: Option<String>,
     #[arg(long)]
     pub fetch: bool,
     pub file: String,
