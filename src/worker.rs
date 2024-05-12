@@ -1,9 +1,7 @@
-use crate::apkbuild;
 use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
-use crate::utils;
 use futures::TryStreamExt;
 use std::sync::Arc;
 use tokio::io;
@@ -151,43 +149,14 @@ impl Worker {
                         };
                         let url = format!("https://gitlab.alpinelinux.org/alpine/aports/-/raw/{commit}/{repo}/{origin}/APKBUILD");
                         info!("Fetching APKBUILD: {url:?}");
-                        let req = self.http.get(&url).send().await?.error_for_status()?;
-                        let body = req.text().await?;
+                        let resp = self.http.get(&url).send().await?.error_for_status()?;
+                        let stream = resp.bytes_stream();
+                        let reader = StreamReader::new(
+                            stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)),
+                        );
 
-                        info!("Parsing APKBUILD");
-                        let apkbuild = apkbuild::parse(&body)?;
-
-                        for i in 0..apkbuild.source.len() {
-                            let Some(url) = apkbuild.source.get(i) else {
-                                continue;
-                            };
-                            let Some(sha512) = apkbuild.sha512sums.get(i) else {
-                                continue;
-                            };
-
-                            if !utils::is_possible_tar_artifact(url) {
-                                continue;
-                            }
-
-                            self.db
-                                .insert_task(&Task::new(
-                                    format!("fetch:{url}"),
-                                    &TaskData::FetchTar {
-                                        url: url.to_string(),
-                                    },
-                                )?)
-                                .await?;
-
-                            let r = db::Ref {
-                                chksum: format!("sha512:{sha512}"),
-                                vendor: vendor.to_string(),
-                                package: origin.to_string(),
-                                version: version.to_string(),
-                                filename: Some(url.to_string()),
-                            };
-                            info!("insert: {r:?}");
-                            self.db.insert_ref(&r).await?;
-                        }
+                        ingest::alpine::stream_data(&self.db, reader, &vendor, &origin, &version)
+                            .await?;
                     }
                     "wolfi" => {
                         let url =

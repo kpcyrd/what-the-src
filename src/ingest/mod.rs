@@ -1,3 +1,4 @@
+pub mod alpine;
 pub mod git;
 pub mod pacman;
 pub mod rpm;
