@@ -11,20 +11,26 @@ use tokio_tar::{Archive, EntryType};
 
 #[derive(Debug, PartialEq)]
 pub struct Pkg {
-    origin: String,
+    package: String,
+    // This field is always set in Alpine, but sometimes missing in wolfi
+    origin: Option<String>,
     version: String,
-    commit: String,
+    // In wolfi this field is sometimes missing
+    // We are going to ignore packages with no commit tho
+    commit: Option<String>,
 }
 
 impl TryFrom<HashMap<String, String>> for Pkg {
     type Error = Error;
 
     fn try_from(mut map: HashMap<String, String>) -> Result<Pkg> {
-        let origin = map.remove("o").ok_or(Error::InvalidData)?;
-        let version = map.remove("V").ok_or(Error::InvalidData)?;
-        let commit = map.remove("c").ok_or(Error::InvalidData)?;
+        let package = map.remove("P").ok_or(Error::ApkMissingField("P"))?;
+        let origin = map.remove("o");
+        let version = map.remove("V").ok_or(Error::ApkMissingField("V"))?;
+        let commit = map.remove("c");
 
         Ok(Pkg {
+            package,
             origin,
             version,
             commit,
@@ -82,9 +88,9 @@ pub async fn run(args: &args::SyncAlpine) -> Result<()> {
             let pkg = pkg?;
             debug!("Found package: {pkg:?}");
 
-            let origin = pkg.origin;
+            let origin = pkg.origin.unwrap_or(pkg.package);
             let version = pkg.version;
-            let commit = pkg.commit;
+            let Some(commit) = pkg.commit else { continue };
 
             if db.get_package(vendor, &origin, &commit).await?.is_some() {
                 debug!("Package is already imported: vendor={vendor:?} origin={origin:?} commit={commit:?}");
@@ -93,8 +99,8 @@ pub async fn run(args: &args::SyncAlpine) -> Result<()> {
 
             info!("Inserting task: vendor={vendor:?} origin={origin:?} commit={commit:?}");
             db.insert_task(&db::Task::new(
-                format!("alpine-git-apkbuild:{origin}:{commit}"),
-                &db::TaskData::AlpineGitApkbuild {
+                format!("{vendor}-apkbuild:{origin}:{commit}"),
+                &db::TaskData::ApkbuildGit {
                     vendor: vendor.clone(),
                     repo: args.repo.clone(),
                     origin,
@@ -158,14 +164,16 @@ p:cmd:aaudit=0.7.2-r3
             &out[..],
             &[
                 Pkg {
-                    origin: "7zip".to_string(),
+                    package: "7zip-doc".to_string(),
+                    origin: Some("7zip".to_string()),
                     version: "23.01-r0".to_string(),
-                    commit: "da4780262417a9446b7d13fe9bb7e83c54edb53d".to_string(),
+                    commit: Some("da4780262417a9446b7d13fe9bb7e83c54edb53d".to_string()),
                 },
                 Pkg {
-                    origin: "aaudit".to_string(),
+                    package: "aaudit".to_string(),
+                    origin: Some("aaudit".to_string()),
                     version: "0.7.2-r3".to_string(),
-                    commit: "0714a84b7f79009ae8b96aef50216ed72f54b885".to_string(),
+                    commit: Some("0714a84b7f79009ae8b96aef50216ed72f54b885".to_string()),
                 },
             ][..]
         );

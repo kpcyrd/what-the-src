@@ -147,7 +147,7 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
     Ok(())
 }
 
-pub async fn run(args: &args::GitArchive) -> Result<()> {
+pub async fn run(args: &args::IngestGit) -> Result<()> {
     let db = db::Client::create().await?;
 
     take_snapshot(&db, &args.git, &args.tmp).await?;

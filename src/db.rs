@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
 use sqlx::types::chrono::{DateTime, Utc};
 use sqlx::Pool;
+use sqlx::Row;
 use std::borrow::Cow;
 use std::env;
 
-const RETRY_LIMIT: i16 = 5;
+const RETRY_LIMIT: i64 = 5;
 
 #[derive(Debug)]
 pub struct Client {
@@ -391,6 +392,41 @@ impl Client {
         }
         Ok(rows)
     }
+
+    pub async fn get_stats(&self, sql: &str, param: Option<i64>) -> Result<Vec<(String, i64)>> {
+        let mut result = sqlx::query(sql).bind(param.unwrap_or(0)).fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            let key = row.get(0);
+            let num = row.get(1);
+            rows.push((key, num));
+        }
+        Ok(rows)
+    }
+
+    pub async fn stats_import_dates(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT to_date_char(last_imported) date, count(*) num
+            FROM artifacts
+            GROUP BY date
+            ORDER by date",
+            None,
+        )
+        .await
+    }
+
+    pub async fn stats_pending_tasks(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT split_part(key, ':', 1) k, count(*) num
+            FROM tasks
+            WHERE retries < $1
+            GROUP BY k
+            ORDER BY k",
+            Some(RETRY_LIMIT),
+        )
+        .await
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -484,6 +520,13 @@ impl From<Ref> for RefView {
                 let href = format!("https://formulae.brew.sh/formula/{}", r.package);
                 (Cow::Borrowed("Homebrew"), Some(href))
             }
+            "wolfi" => {
+                let href = format!(
+                    "https://github.com/wolfi-dev/os/blob/main/{}.yaml",
+                    r.package
+                );
+                (Cow::Borrowed("Wolfi OS"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
@@ -543,9 +586,10 @@ pub enum TaskData {
         version: String,
         url: String,
     },
-    AlpineGitApkbuild {
+    #[serde(alias = "AlpineGitApkbuild")]
+    ApkbuildGit {
         vendor: String,
-        repo: String,
+        repo: Option<String>,
         origin: String,
         version: String,
         commit: String,

@@ -6,7 +6,6 @@ pub mod chksums;
 pub mod compression;
 pub mod db;
 pub mod errors;
-pub mod git;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod reindex;
@@ -39,10 +38,12 @@ async fn main() -> Result<()> {
         SubCommand::Web(args) => web::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestTar(args)) => ingest::tar::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestGit(args)) => ingest::git::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {
             ingest::pacman::run(&args).await
         }
         SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestWolfi(args)) => ingest::wolfi::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestSbom(args)) => sbom::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
@@ -51,7 +52,6 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::SyncGentoo(args)) => sync::gentoo::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncHomebrew(args)) => sync::homebrew::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
-        SubCommand::Plumbing(Plumbing::GitArchive(args)) => git::run(&args).await,
         SubCommand::Plumbing(Plumbing::Reindex(args)) => reindex::run(&args).await,
     }
 }

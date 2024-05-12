@@ -1,4 +1,4 @@
-use crate::git;
+use crate::ingest;
 pub use log::{debug, error, info, trace, warn};
 use std::process::ExitStatus;
 
@@ -37,6 +37,10 @@ pub enum Error {
     #[error(transparent)]
     Base64(#[from] data_encoding::DecodeError),
     #[error(transparent)]
+    Yaml(#[from] serde_yaml::Error),
+    #[error(transparent)]
+    Regex(#[from] regex::Error),
+    #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]
     ChildExit(std::process::ExitStatus),
@@ -51,7 +55,7 @@ pub enum Error {
     #[error("Unknown git reference string: {0:?}")]
     UnknownGitRef(String),
     #[error("Invalid git reference: {0:?}")]
-    InvalidGitRef(git::GitUrl),
+    InvalidGitRef(ingest::git::GitUrl),
     #[error("Error in git operation")]
     GitError(ExitStatus),
     #[error("Timeout of git fetch operation")]
@@ -64,6 +68,16 @@ pub enum Error {
     AptIndexMissingSources,
     #[error("Unknown sbom strain: {0:?}")]
     UnknownSbomStrain(String),
+    #[error("Task is missing mandatory repo field")]
+    AlpineMissingRepo,
+    #[error("APKINDEX is missing mandatory field: {0:?}")]
+    ApkMissingField(&'static str),
+    #[error("Unrecognized apk vendor: {0:?}")]
+    UnrecognizedApkVendor(String),
+    #[error("Failed to detect artifact checksum in wolfi package: {0:?}")]
+    WolfiMissingChecksum(ingest::wolfi::Step),
+    #[error("Unrecognized substitute in wolfi package: {0:?}")]
+    WolfiUnknownSubstitute(String),
 }
 
 // TODO: consider fixing this

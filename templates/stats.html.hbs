@@ -1,0 +1,34 @@
+{{#*inline "title"}}
+Stats - What the src?!
+{{/inline}}
+
+{{#*inline "page"}}
+<h1>📊 Statistics and Metrics</h1>
+
+<h2>Artifacts</h2>
+<pre>
+{{#each total_artifacts}}
+{{pad_right 'Known artifacts' 17}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+
+<h2>Artifact import dates</h2>
+<pre>
+{{#each import_dates}}
+{{pad_right this.0 17}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+
+{{#if pending_tasks}}
+<h2>Pending import tasks</h2>
+<pre>
+{{#each pending_tasks}}
+{{pad_right this.0 17}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+{{/if}}
+
+<p>Return to <a href="/">home page</a>.</p>
+{{/inline}}
+
+{{> base.html.hbs }}
