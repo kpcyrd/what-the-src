@@ -2,7 +2,6 @@ use crate::apkbuild;
 use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
-use crate::git;
 use crate::ingest;
 use crate::utils;
 use futures::TryStreamExt;
@@ -216,8 +215,8 @@ impl Worker {
                     .await?;
             }
             TaskData::GitSnapshot { url } => {
-                let git = url.parse::<git::GitUrl>()?;
-                git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
+                let git = url.parse::<ingest::git::GitUrl>()?;
+                ingest::git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
             }
         }
 

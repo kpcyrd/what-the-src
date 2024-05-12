@@ -1,4 +1,3 @@
-use crate::git;
 use crate::ingest;
 pub use log::{debug, error, info, trace, warn};
 use std::process::ExitStatus;
@@ -56,7 +55,7 @@ pub enum Error {
     #[error("Unknown git reference string: {0:?}")]
     UnknownGitRef(String),
     #[error("Invalid git reference: {0:?}")]
-    InvalidGitRef(git::GitUrl),
+    InvalidGitRef(ingest::git::GitUrl),
     #[error("Error in git operation")]
     GitError(ExitStatus),
     #[error("Timeout of git fetch operation")]

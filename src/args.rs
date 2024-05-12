@@ -1,4 +1,4 @@
-use crate::git;
+use crate::ingest;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
 
@@ -42,10 +42,11 @@ pub struct Worker {
 #[derive(Debug, Subcommand)]
 pub enum Plumbing {
     IngestTar(IngestTar),
+    IngestGit(IngestGit),
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     IngestRpm(IngestRpm),
-    IngestSbom(IngestSbom),
     IngestWolfi(IngestWolfi),
+    IngestSbom(IngestSbom),
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
@@ -53,7 +54,6 @@ pub enum Plumbing {
     SyncGentoo(SyncGentoo),
     SyncHomebrew(SyncHomebrew),
     AddRef(AddRef),
-    GitArchive(GitArchive),
     Reindex(Reindex),
 }
 
@@ -63,6 +63,16 @@ pub struct IngestTar {
     #[arg(short, long)]
     pub compression: Option<String>,
     pub file: Option<String>,
+}
+
+/// Create a `git archive` of a git ref
+#[derive(Debug, Parser)]
+pub struct IngestGit {
+    /// The directory to clone into
+    #[arg(long)]
+    pub tmp: String,
+    /// The url to clone from, including tag information
+    pub git: ingest::git::GitUrl,
 }
 
 /// Ingest a pacman git .tar.gz
@@ -196,16 +206,6 @@ pub struct AddRef {
     pub version: String,
     #[arg(long)]
     pub filename: Option<String>,
-}
-
-/// Create a `git archive` of a git ref
-#[derive(Debug, Parser)]
-pub struct GitArchive {
-    /// The directory to clone into
-    #[arg(long)]
-    pub tmp: String,
-    /// The url to clone from, including tag information
-    pub git: git::GitUrl,
 }
 
 /// Requeue all known urls
