@@ -63,23 +63,44 @@ impl Build {
     pub fn collect_sources(&self) -> Result<Vec<Source>> {
         let mut sources = Vec::new();
         for step in &self.pipeline {
-            if step.uses.as_deref() != Some("fetch") {
-                continue;
+            match step.uses.as_deref() {
+                Some("fetch") => {
+                    let Some(url) = step.with.get("uri") else {
+                        continue;
+                    };
+                    let chksum = if let Some(value) = step.with.get("expected-sha256") {
+                        format!("sha256:{value}")
+                    } else if let Some(value) = step.with.get("expected-sha512") {
+                        format!("sha512:{value}")
+                    } else {
+                        return Err(Error::WolfiMissingChecksum(step.clone()));
+                    };
+                    sources.push(Source {
+                        url: self.interpolate(url)?,
+                        chksum,
+                    });
+                }
+                Some("git-checkout") => {
+                    let Some(repository) = step.with.get("repository") else {
+                        continue;
+                    };
+                    let Some(tag) = step.with.get("tag") else {
+                        continue;
+                    };
+                    let Some(commit) = step.with.get("expected-commit") else {
+                        continue;
+                    };
+
+                    let repository = self.interpolate(repository)?;
+                    let tag = self.interpolate(tag)?;
+
+                    let url = format!("git+{repository}#tag={tag}");
+                    let chksum = format!("git:{commit}");
+
+                    sources.push(Source { url, chksum });
+                }
+                _ => (),
             }
-            let Some(url) = step.with.get("uri") else {
-                continue;
-            };
-            let chksum = if let Some(value) = step.with.get("expected-sha256") {
-                format!("sha256:{value}")
-            } else if let Some(value) = step.with.get("expected-sha512") {
-                format!("sha512:{value}")
-            } else {
-                return Err(Error::WolfiMissingChecksum(step.clone()));
-            };
-            sources.push(Source {
-                url: self.interpolate(url)?,
-                chksum,
-            });
         }
         Ok(sources)
     }
@@ -129,16 +150,31 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         debug!("source={source:?}");
         let url = source.url;
 
-        if !utils::is_possible_tar_artifact(&url) {
-            continue;
-        }
+        let task = match url.split_once("://") {
+            Some(("https" | "http", _)) => {
+                if !utils::is_possible_tar_artifact(&url) {
+                    continue;
+                }
 
-        let task = Task::new(
-            format!("fetch:{url}"),
-            &TaskData::FetchTar {
-                url: url.to_string(),
-            },
-        )?;
+                Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                    },
+                )?
+            }
+            Some(("git+https", _)) => {
+                debug!("Found git remote: {url:?}");
+                Task::new(
+                    format!("git-clone:{url}"),
+                    &TaskData::GitSnapshot {
+                        url: url.to_string(),
+                    },
+                )?
+            }
+            _ => continue,
+        };
+
         db.insert_task(&task).await?;
 
         let r = db::Ref {
@@ -432,5 +468,87 @@ update:
                 chksum: "sha512:3f391b1bd65a0654eb5b31b50f1d400f0ec38ab191d88e15849a6e4d164b7bf2ce4a6d70ec8b6e27bde1b83bb2d45b65c03129499334669e05ee025784be455a".to_string(),
             }
         ]);
+    }
+
+    #[test]
+    fn test_apko() {
+        let data = r#"
+package:
+  name: apko
+  version: 0.14.1
+  epoch: 0
+  description: Build OCI images using APK directly without Dockerfile
+  copyright:
+    - license: Apache-2.0
+  dependencies:
+    runtime:
+      - ca-certificates-bundle
+
+environment:
+  contents:
+    packages:
+      - build-base
+      - busybox
+      - ca-certificates-bundle
+      - go
+
+pipeline:
+  - uses: git-checkout
+    with:
+      repository: https://github.com/chainguard-dev/apko
+      tag: v${{package.version}}
+      expected-commit: 91e5c5e1baf31e19f6d3af3b0b6b81f849ce81da
+
+  - runs: |
+      make apko
+      install -m755 -D ./apko "${{targets.destdir}}"/usr/bin/apko
+
+  - uses: strip
+
+update:
+  enabled: true
+  github:
+    identifier: chainguard-dev/apko
+    strip-prefix: v
+    use-tag: true
+"#;
+        let build = Build::parse(data).unwrap();
+        assert_eq!(
+            build,
+            Build {
+                package: Package {
+                    name: "apko".to_string(),
+                    version: "0.14.1".to_string(),
+                    epoch: 0,
+                },
+                var_transforms: vec![],
+                pipeline: vec![
+                    Step {
+                        uses: Some("git-checkout".to_string()),
+                        with: maplit::hashmap! {
+                            "tag".to_string() => "v${{package.version}}".to_string(),
+                            "expected-commit".to_string() => "91e5c5e1baf31e19f6d3af3b0b6b81f849ce81da".to_string(),
+                            "repository".to_string() => "https://github.com/chainguard-dev/apko".to_string(),
+                        }
+                    },
+                    Step {
+                        uses: None,
+                        with: HashMap::new()
+                    },
+                    Step {
+                        uses: Some("strip".to_string()),
+                        with: HashMap::new()
+                    }
+                ]
+            }
+        );
+        let sources = build.collect_sources().unwrap();
+        assert_eq!(
+            sources,
+            &[Source {
+                url: "git+https://github.com/chainguard-dev/apko#tag=v0.14.1".to_string(),
+                chksum: "git:91e5c5e1baf31e19f6d3af3b0b6b81f849ce81da".to_string(),
+            }]
+        );
     }
 }
