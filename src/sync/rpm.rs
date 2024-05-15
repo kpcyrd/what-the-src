@@ -123,7 +123,7 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
 
         info!("package={package:?} version={version:?} url={url:?}");
         db.insert_task(&db::Task::new(
-            format!("source-rpm:{package}:{version}"),
+            format!("source-rpm:{vendor}:{package}:{version}"),
             &db::TaskData::SourceRpm {
                 vendor: vendor.to_string(),
                 package: package.to_string(),
