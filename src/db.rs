@@ -531,6 +531,13 @@ impl From<Ref> for RefView {
                 let href = format!("https://packages.guix.gnu.org/packages/{}", r.package);
                 (Cow::Borrowed("Guix"), Some(href))
             }
+            "ubuntu" => {
+                let href = format!(
+                    "https://packages.ubuntu.com/search?suite=all&searchon=names&keywords={}",
+                    r.package
+                );
+                (Cow::Borrowed("Ubuntu"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
