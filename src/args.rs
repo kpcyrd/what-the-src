@@ -146,9 +146,9 @@ pub struct SyncAlpine {
 pub struct SyncApt {
     #[arg(long)]
     pub vendor: String,
-    /// The release name to import, e.g. `sid`, `stable` or `stable-security`
-    #[arg(long)]
-    pub release: String,
+    /// The release names to import, e.g. `sid`, `stable` or `stable-security`
+    #[arg(short, long = "release", required = true)]
+    pub releases: Vec<String>,
     /// The suite name to import, e.g. `main`, `contrib` or `non-free`
     #[arg(long, default_value = "main")]
     pub suite: String,

@@ -6,10 +6,10 @@
 what-the-src plumbing sync-pacman --vendor archlinux --fetch https://github.com/archlinux/state/archive/refs/heads/main.tar.gz -r core-x86_64 -r extra-x86_64 -r core-any -r extra-any -r multilib-x86_64
 ```
 
-### Sync Debian sid
+### Sync Debian
 
 ```
-what-the-src plumbing sync-apt --vendor debian http://deb.debian.org/debian/ --release sid
+what-the-src plumbing sync-apt --vendor debian http://deb.debian.org/debian/ --release sid --release stable
 what-the-src plumbing sync-apt --vendor debian https://security.debian.org/debian-security/ --release stable-security
 ```
 
