@@ -231,7 +231,7 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                     continue;
                 };
 
-                info!("url={url:?}");
+                info!("Adding download task: url={url:?}");
                 db.insert_task(&Task::new(
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {
