@@ -49,3 +49,9 @@ what-the-src plumbing sync-homebrew --vendor homebrew --fetch https://formulae.b
 ```
 what-the-src plumbing sync-alpine --vendor wolfi --fetch https://packages.wolfi.dev/os/x86_64/APKINDEX.tar.gz
 ```
+
+### Sync Guix
+
+```
+what-the-src plumbing sync-guix --vendor guix --fetch 'https://guix.gnu.org/packages.json'
+```

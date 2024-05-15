@@ -53,6 +53,7 @@ pub enum Plumbing {
     SyncRpm(SyncRpm),
     SyncGentoo(SyncGentoo),
     SyncHomebrew(SyncHomebrew),
+    SyncGuix(SyncGuix),
     AddRef(AddRef),
     Reindex(Reindex),
 }
@@ -188,6 +189,16 @@ pub struct SyncGentoo {
 /// Start an import of a software vendor (homebrew)
 #[derive(Debug, Parser)]
 pub struct SyncHomebrew {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (guix)
+#[derive(Debug, Parser)]
+pub struct SyncGuix {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]

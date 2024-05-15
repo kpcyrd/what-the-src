@@ -94,7 +94,7 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         git.url, reference
     );
     let child = process::Command::new("git")
-        .args(["-C", &path, "fetch", "origin", &reference])
+        .args(["-C", &path, "fetch", "origin", reference])
         .status();
     let Ok(status) = time::timeout(CLONE_TIMEOUT, child).await else {
         return Err(Error::GitFetchTimeout);

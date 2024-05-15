@@ -527,6 +527,10 @@ impl From<Ref> for RefView {
                 );
                 (Cow::Borrowed("Wolfi OS"), Some(href))
             }
+            "guix" => {
+                let href = format!("https://packages.guix.gnu.org/packages/{}", r.package);
+                (Cow::Borrowed("Guix"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
