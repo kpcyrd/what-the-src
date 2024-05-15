@@ -4,7 +4,6 @@ use crate::errors::*;
 use crate::ingest;
 use crate::utils;
 use std::sync::Arc;
-use tokio::io::AsyncReadExt;
 use tokio::time::{self, Duration};
 
 fn normalize_archlinux_gitlab_names(package: &str) -> String {
@@ -58,9 +57,7 @@ impl Worker {
                 }
 
                 info!("Fetching tar: {url:?}");
-                let mut reader = self.http.fetch(&url).await?;
-                let mut body = Vec::new();
-                reader.read_to_end(&mut body).await?;
+                let reader = self.http.fetch(&url).await?;
 
                 // TODO: do this stuff on the fly
                 let compression = if url.ends_with(".gz") || url.ends_with(".tgz") {
@@ -73,7 +70,7 @@ impl Worker {
                     None
                 };
 
-                ingest::tar::stream_data(&self.db, &body[..], compression).await?;
+                ingest::tar::stream_data(&self.db, reader, compression).await?;
             }
             TaskData::PacmanGitSnapshot {
                 vendor,
