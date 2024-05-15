@@ -2,11 +2,10 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
-use futures::TryStreamExt;
+use crate::utils;
 use std::sync::Arc;
-use tokio::io;
+use tokio::io::AsyncReadExt;
 use tokio::time::{self, Duration};
-use tokio_util::io::StreamReader;
 
 fn normalize_archlinux_gitlab_names(package: &str) -> String {
     if package == "tree" {
@@ -29,7 +28,7 @@ fn normalize_archlinux_gitlab_names(package: &str) -> String {
 
 pub struct Worker {
     db: Arc<db::Client>,
-    http: reqwest::Client,
+    http: utils::HttpClient,
     git_tmp: String,
 }
 
@@ -59,8 +58,9 @@ impl Worker {
                 }
 
                 info!("Fetching tar: {url:?}");
-                let req = self.http.get(&url).send().await?.error_for_status()?;
-                let body = req.bytes().await?;
+                let mut reader = self.http.fetch(&url).await?;
+                let mut body = Vec::new();
+                reader.read_to_end(&mut body).await?;
 
                 // TODO: do this stuff on the fly
                 let compression = if url.ends_with(".gz") || url.ends_with(".tgz") {
@@ -85,10 +85,7 @@ impl Worker {
                 let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz");
 
                 info!("Downloading pacman git snapshot: {url:?}");
-                let resp = self.http.get(&url).send().await?.error_for_status()?;
-                let stream = resp.bytes_stream();
-                let reader =
-                    StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
+                let reader = self.http.fetch(&url).await?;
                 ingest::pacman::stream_data(&self.db, reader, &vendor, &package, &version, false)
                     .await?;
 
@@ -107,16 +104,7 @@ impl Worker {
                 url,
             } => {
                 info!("Downloading source rpm: {url:?}");
-                let stream = self
-                    .http
-                    .get(&url)
-                    .send()
-                    .await?
-                    .error_for_status()?
-                    .bytes_stream();
-
-                let reader =
-                    StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
+                let reader = self.http.fetch(&url).await?;
 
                 ingest::rpm::stream_data(
                     self.db.clone(),
@@ -149,11 +137,7 @@ impl Worker {
                         };
                         let url = format!("https://gitlab.alpinelinux.org/alpine/aports/-/raw/{commit}/{repo}/{origin}/APKBUILD");
                         info!("Fetching APKBUILD: {url:?}");
-                        let resp = self.http.get(&url).send().await?.error_for_status()?;
-                        let stream = resp.bytes_stream();
-                        let reader = StreamReader::new(
-                            stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)),
-                        );
+                        let reader = self.http.fetch(&url).await?;
 
                         ingest::alpine::stream_data(&self.db, reader, &vendor, &origin, &version)
                             .await?;
@@ -163,11 +147,7 @@ impl Worker {
                             format!("https://github.com/wolfi-dev/os/raw/{commit}/{origin}.yaml");
 
                         info!("Fetching wolfi yaml: {url:?}");
-                        let resp = self.http.get(&url).send().await?.error_for_status()?;
-                        let stream = resp.bytes_stream();
-                        let reader = StreamReader::new(
-                            stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)),
-                        );
+                        let reader = self.http.fetch(&url).await?;
 
                         ingest::wolfi::stream_data(&self.db, reader, &vendor, &origin, &version)
                             .await?;
@@ -195,12 +175,7 @@ impl Worker {
 
 pub async fn run(args: &args::Worker) -> Result<()> {
     let db = db::Client::create().await?;
-
-    let mut http = reqwest::ClientBuilder::new();
-    if let Some(socks5) = &args.socks5 {
-        http = http.proxy(reqwest::Proxy::all(socks5)?);
-    }
-    let http = http.build()?;
+    let http = utils::http_client(args.socks5.as_ref())?;
 
     let worker = Worker {
         db: Arc::new(db),

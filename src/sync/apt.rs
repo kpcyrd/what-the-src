@@ -7,8 +7,12 @@ use crate::utils;
 use apt_parser::Release;
 use tokio::io::{self, AsyncReadExt};
 
-async fn find_source_index_path(url: &str, suite: &str) -> Result<(String, &'static str)> {
-    let mut reader = utils::fetch(url).await?;
+async fn find_source_index_path(
+    http: &utils::HttpClient,
+    url: &str,
+    suite: &str,
+) -> Result<(String, &'static str)> {
+    let mut reader = http.fetch(url).await?;
 
     let mut buf = String::new();
     reader.read_to_string(&mut buf).await?;
@@ -32,15 +36,16 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
     let suite = &args.suite;
 
     let db = db::Client::create().await?;
+    let http = utils::http_client(None)?;
 
     for release in &args.releases {
         info!("Fetching Release file");
         let url = format!("{base_url}/dists/{release}/Release");
-        let (filename, compression) = find_source_index_path(&url, suite).await?;
+        let (filename, compression) = find_source_index_path(&http, &url, suite).await?;
 
         info!("Fetching Sources index");
         let url = format!("{base_url}/dists/{release}/{filename}");
-        let reader = utils::fetch(&url).await?;
+        let reader = http.fetch(&url).await?;
         let reader = io::BufReader::new(reader);
         let mut reader = match compression {
             "gz" => Decompressor::gz(reader),

@@ -1,11 +1,10 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
+use crate::utils;
 use async_compression::tokio::bufread::{GzipDecoder, ZstdDecoder};
-use futures::TryStreamExt;
 use serde::Deserialize;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
-use tokio_util::io::StreamReader;
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Metadata {
@@ -74,30 +73,20 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
     let base_url = args.url.strip_suffix('/').unwrap_or(&args.url);
     let vendor = &args.vendor;
 
-    let client = reqwest::ClientBuilder::new();
-    let client = client.build()?;
+    let http = utils::http_client(None)?;
 
     let url = format!("{base_url}/repodata/repomd.xml");
     info!("Downloading url: {url:?}");
-    let text = client
-        .get(url)
-        .send()
-        .await?
-        .error_for_status()?
-        .text()
-        .await?;
+    let mut reader = http.fetch(&url).await?;
+
+    let mut text = String::new();
+    reader.read_to_string(&mut text).await?;
 
     let repomd = RepoMd::from_xml(&text)?;
     let url = format!("{base_url}/{}", repomd.find_primary_location()?);
-    info!("Downloading url: {url:?}");
-    let stream = client
-        .get(&url)
-        .send()
-        .await?
-        .error_for_status()?
-        .bytes_stream();
 
-    let reader = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
+    info!("Downloading url: {url:?}");
+    let reader = http.fetch(&url).await?;
     let reader = io::BufReader::new(reader);
     let mut reader: Box<dyn AsyncRead + Unpin> = if url.ends_with(".zst") {
         Box::new(ZstdDecoder::new(reader))
