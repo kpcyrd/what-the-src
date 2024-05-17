@@ -53,10 +53,14 @@ impl Snapshot {
 
                         let sbom = sbom::Sbom::new(strain, buf)?;
                         let chksum = db.insert_sbom(&sbom).await?;
-                        info!("Inserted sbom {:?}: {chksum:?}", sbom.strain());
+                        let strain = sbom.strain();
+                        info!("Inserted sbom {strain:?}: {chksum:?}");
                         db.insert_task(&db::Task::new(
-                            format!("sbom:{chksum}"),
-                            &db::TaskData::IndexSbom { chksum },
+                            format!("sbom:{strain}:{chksum}"),
+                            &db::TaskData::IndexSbom {
+                                strain: Some(strain.to_string()),
+                                chksum,
+                            },
                         )?)
                         .await?;
                     }

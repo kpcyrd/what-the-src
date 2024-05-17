@@ -183,8 +183,16 @@ impl Worker {
                 let git = url.parse::<ingest::git::GitUrl>()?;
                 ingest::git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
             }
-            TaskData::IndexSbom { chksum } => {
-                if let Some(sbom) = self.db.get_sbom(&chksum).await? {
+            TaskData::IndexSbom { strain, chksum } => {
+                // Support old sbom task format
+                let sbom = if let Some(strain) = strain {
+                    self.db.get_sbom_with_strain(&chksum, &strain).await?
+                } else {
+                    self.db.get_sbom(&chksum).await?
+                };
+
+                // If sbom was found
+                if let Some(sbom) = sbom {
                     let sbom = sbom::Sbom::try_from(&sbom)?;
                     sbom::index(&self.db, &sbom).await?;
                 }

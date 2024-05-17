@@ -649,6 +649,8 @@ pub enum TaskData {
         url: String,
     },
     IndexSbom {
+        // support old task format
+        strain: Option<String>,
         chksum: String,
     },
 }

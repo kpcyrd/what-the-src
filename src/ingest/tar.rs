@@ -111,16 +111,20 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                 if let Some(sbom) = sbom {
                     if let Ok(data) = String::from_utf8(data) {
                         let sbom = sbom::Sbom::new(sbom, data)?;
-                        info!("Inserting sbom {:?}: {digest:?}", sbom.strain());
                         let chksum = db.insert_sbom(&sbom).await?;
+                        let strain = sbom.strain();
+                        info!("Inserted sbom {strain:?}: {digest:?}");
                         sbom_refs.push(sbom::Ref {
-                            strain: sbom.strain(),
+                            strain,
                             chksum: chksum.clone(),
                             path: path.clone(),
                         });
                         db.insert_task(&db::Task::new(
-                            format!("sbom:{chksum}"),
-                            &db::TaskData::IndexSbom { chksum },
+                            format!("sbom:{strain}:{chksum}"),
+                            &db::TaskData::IndexSbom {
+                                strain: Some(strain.to_string()),
+                                chksum,
+                            },
                         )?)
                         .await?;
                     }
