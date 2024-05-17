@@ -4,7 +4,7 @@ use crate::errors::*;
 use crate::ingest;
 use sqlx::types::chrono::Utc;
 
-pub async fn run(args: &args::Reindex) -> Result<()> {
+pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
     let db = db::Client::create().await?;
 
     let refs = db.get_all_refs().await?;
@@ -42,6 +42,36 @@ pub async fn run(args: &args::Reindex) -> Result<()> {
             db.insert_task(&task).await?;
             scheduled += 1;
         }
+    }
+
+    Ok(())
+}
+
+pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
+    let db = db::Client::create().await?;
+
+    let sboms = db.get_all_sboms().await?;
+    let mut scheduled = 0;
+    for sbom in sboms {
+        if args.strain.is_some() && args.strain != Some(sbom.strain) {
+            continue;
+        }
+
+        if let Some(limit) = &args.limit {
+            if scheduled >= *limit {
+                info!("Reached schedule limit of {limit} items, exiting");
+                break;
+            }
+        }
+
+        let chksum = sbom.chksum;
+        let task = db::Task::new(
+            format!("sbom:{chksum}"),
+            &db::TaskData::IndexSbom { chksum },
+        )?;
+        info!("Inserting task: {task:?}");
+        db.insert_task(&task).await?;
+        scheduled += 1;
     }
 
     Ok(())

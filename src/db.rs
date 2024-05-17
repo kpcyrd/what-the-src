@@ -351,6 +351,20 @@ impl Client {
         Ok(result)
     }
 
+    pub async fn get_all_sboms(&self) -> Result<Vec<Sbom>> {
+        let mut result = sqlx::query_as(
+            "SELECT *
+            FROM sboms",
+        )
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
+    }
+
     pub async fn get_sbom_with_strain(&self, chksum: &str, strain: &str) -> Result<Option<Sbom>> {
         let result =
             sqlx::query_as::<_, Sbom>("SELECT * FROM sboms WHERE chksum = $1 AND strain = $2")
