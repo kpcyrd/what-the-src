@@ -443,6 +443,16 @@ impl Client {
         Ok(rows)
     }
 
+    pub async fn stats_estimated_artifacts(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT '', reltuples::bigint
+            FROM pg_class
+            WHERE relname = 'artifacts'",
+            None,
+        )
+        .await
+    }
+
     pub async fn stats_import_dates(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
             "SELECT to_date_char(last_imported) date, count(*) num

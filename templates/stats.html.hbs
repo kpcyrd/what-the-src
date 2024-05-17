@@ -12,12 +12,14 @@ Stats - What the src?!
 {{/each}}
 </pre>
 
+{{~#if import_dates}}
 <h2>Artifact import dates</h2>
 <pre>
 {{#each import_dates}}
 {{pad_right this.0 19}} {{format_num this.1 14}}
 {{/each}}
 </pre>
+{{/if}}
 
 {{#if pending_tasks}}
 <h2>Pending import tasks</h2>

@@ -263,14 +263,24 @@ async fn search(
     Ok(Box::new(warp::reply::html(html)))
 }
 
+#[derive(Debug, Deserialize)]
+struct StatsQuery {
+    #[serde(default)]
+    dates: bool,
+}
+
 async fn stats(
     hbs: Arc<Handlebars<'_>>,
     db: Arc<db::Client>,
+    stats: StatsQuery,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
     let mut set = JoinSet::new();
-    {
+    if stats.dates {
         let db = db.clone();
         set.spawn(async move { ("import_dates", db.stats_import_dates().await) });
+    } else {
+        let db = db.clone();
+        set.spawn(async move { ("total_artifacts", db.stats_estimated_artifacts().await) });
     }
     set.spawn(async move { ("pending_tasks", db.stats_pending_tasks().await) });
 
@@ -414,6 +424,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(db.clone())
         .and(warp::path("stats"))
         .and(warp::path::end())
+        .and(warp::query::<StatsQuery>())
         .and_then(stats)
         .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
     let diff_original = warp::get()
