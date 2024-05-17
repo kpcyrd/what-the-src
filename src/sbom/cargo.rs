@@ -21,7 +21,7 @@ impl CargoLock {
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct ParsedLock {
     version: Option<u8>,
-    #[serde(rename = "package")]
+    #[serde(default, rename = "package")]
     packages: VecDeque<serde_json::Value>,
 }
 
@@ -108,5 +108,17 @@ checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
                 },
             ]
         );
+    }
+
+    #[test]
+    fn test_cargo_lock_no_packages() {
+        let data = r#"
+[root]
+name = "stable-check"
+version = "0.1.0"
+"#;
+        let cargo = Sbom::new("cargo-lock", data.to_string()).unwrap();
+        let list = cargo.to_packages().unwrap();
+        assert_eq!(list, []);
     }
 }
