@@ -139,7 +139,35 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                 .await?;
             }
         }
-        yarn::STRAIN => (),
+        yarn::STRAIN => {
+            for pkg in sbom.to_packages()? {
+                let full_name = &pkg.name;
+                let suffix = pkg
+                    .name
+                    .rsplit_once('/')
+                    .map(|(_, x)| x)
+                    .unwrap_or(&pkg.name);
+                let version = &pkg.version;
+
+                let url =
+                    format!("https://registry.yarnpkg.com/{full_name}/-/{suffix}-{version}.tgz");
+
+                info!("Adding download task url={url:?}");
+                db.insert_task(&db::Task::new(
+                    format!("fetch:{url}"),
+                    &db::TaskData::FetchTar {
+                        url,
+                        compression: Some("gz".to_string()),
+                        success_ref: Some(db::DownloadRef {
+                            vendor: yarn::VENDOR.to_string(),
+                            package: pkg.name.to_string(),
+                            version: pkg.version.to_string(),
+                        }),
+                    },
+                )?)
+                .await?;
+            }
+        }
         _ => (),
     }
     Ok(())

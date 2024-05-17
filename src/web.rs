@@ -35,7 +35,7 @@ fn download_srcs_hashset() -> &'static HashSet<&'static str> {
     SET.get_or_init(|| {
         let mut s = HashSet::new();
         s.insert(sbom::cargo::VENDOR);
-        s.insert("registry.yarnpkg.com");
+        s.insert(sbom::yarn::VENDOR);
         s
     })
 }

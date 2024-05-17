@@ -4,6 +4,7 @@ use data_encoding::BASE64;
 use std::collections::VecDeque;
 
 pub const STRAIN: &str = "yarn-lock";
+pub const VENDOR: &str = "registry.yarnpkg.com";
 
 #[derive(Debug, PartialEq)]
 pub struct YarnLock {
