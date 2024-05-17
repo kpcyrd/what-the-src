@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 pub const STRAIN: &str = "cargo-lock";
+pub const VENDOR: &str = "crates.io";
 
 #[derive(Debug, PartialEq)]
 pub struct CargoLock {

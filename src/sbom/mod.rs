@@ -105,7 +105,11 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
             for pkg in sbom.to_packages()? {
                 let Some(chksum) = pkg.checksum else { continue };
 
-                if db.resolve_artifact(&chksum).await?.is_some() {
+                let (has_artifact, has_ref) = tokio::join!(
+                    db.resolve_artifact(&chksum),
+                    db.get_ref(&chksum, cargo::VENDOR, &pkg.name, &pkg.version),
+                );
+                if has_artifact?.is_some() && has_ref?.is_some() {
                     continue;
                 }
 
@@ -121,7 +125,7 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                         url,
                         compression: Some("gz".to_string()),
                         success_ref: Some(db::DownloadRef {
-                            vendor: "crates.io".to_string(),
+                            vendor: cargo::VENDOR.to_string(),
                             package: pkg.name.to_string(),
                             version: pkg.version.to_string(),
                         }),
