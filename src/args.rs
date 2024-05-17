@@ -151,8 +151,8 @@ pub struct SyncApt {
     #[arg(short, long = "release", required = true)]
     pub releases: Vec<String>,
     /// The suite name to import, e.g. `main`, `contrib` or `non-free`
-    #[arg(long, default_value = "main")]
-    pub suite: String,
+    #[arg(long = "suite", default_value = "main")]
+    pub suites: Vec<String>,
     pub url: String,
 }
 
