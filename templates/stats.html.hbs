@@ -21,6 +21,13 @@ Stats - What the src?!
 </pre>
 {{/if}}
 
+<h2>Source code references</h2>
+<pre>
+{{#each vendor_refs}}
+{{pad_right this.0 19}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+
 {{#if pending_tasks}}
 <h2>Pending import tasks</h2>
 <pre>

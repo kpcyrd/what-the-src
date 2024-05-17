@@ -464,6 +464,17 @@ impl Client {
         .await
     }
 
+    pub async fn stats_vendor_refs(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT vendor, count(*)
+            FROM refs
+            GROUP BY vendor
+            ORDER BY vendor",
+            Some(RETRY_LIMIT),
+        )
+        .await
+    }
+
     pub async fn stats_pending_tasks(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
             "SELECT split_part(key, ':', 1) k, count(*) num

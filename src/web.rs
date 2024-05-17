@@ -282,6 +282,10 @@ async fn stats(
         let db = db.clone();
         set.spawn(async move { ("total_artifacts", db.stats_estimated_artifacts().await) });
     }
+    {
+        let db = db.clone();
+        set.spawn(async move { ("vendor_refs", db.stats_vendor_refs().await) });
+    }
     set.spawn(async move { ("pending_tasks", db.stats_pending_tasks().await) });
 
     let mut data = HashMap::new();
