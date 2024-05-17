@@ -9,11 +9,11 @@ use num_format::{Locale, ToFormattedString};
 use rust_embed::RustEmbed;
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::result;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use tokio::task::JoinSet;
 use warp::reject;
 use warp::{
@@ -29,6 +29,16 @@ const CACHE_CONTROL_DEFAULT: HeaderValue =
 #[allow(clippy::declare_interior_mutable_const)]
 const CACHE_CONTROL_SHORT: HeaderValue =
     HeaderValue::from_static("max-age=10, stale-while-revalidate=20, stale-if-error=60");
+
+fn download_srcs_hashset() -> &'static HashSet<&'static str> {
+    static SET: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    SET.get_or_init(|| {
+        let mut s = HashSet::new();
+        s.insert(sbom::cargo::VENDOR);
+        s.insert("registry.yarnpkg.com");
+        s
+    })
+}
 
 #[derive(RustEmbed)]
 #[folder = "templates"]
@@ -142,6 +152,18 @@ async fn artifact(
 
         let suspecting_autotools = detect_autotools(&artifact)?;
 
+        let mut build_inputs = Vec::new();
+        let mut found_at = Vec::new();
+
+        let set = download_srcs_hashset();
+        for r in refs {
+            if set.contains(r.vendor.as_str()) {
+                found_at.push(r);
+            } else {
+                build_inputs.push(r);
+            }
+        }
+
         let html = hbs
             .render(
                 "artifact.html.hbs",
@@ -149,7 +171,13 @@ async fn artifact(
                     "artifact": artifact,
                     "chksum": chksum,
                     "alias": alias,
-                    "refs": refs,
+                    "refs": json!([{
+                        "title": "Build input of",
+                        "refs": build_inputs,
+                    }, {
+                        "title": "Found at",
+                        "refs": found_at,
+                    }]),
                     "sbom_refs": sbom_refs,
                     "files": files,
                     "suspecting_autotools": suspecting_autotools,

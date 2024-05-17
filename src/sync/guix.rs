@@ -130,6 +130,8 @@ pub async fn run(args: &args::SyncGuix) -> Result<()> {
                         format!("fetch:{url}"),
                         &TaskData::FetchTar {
                             url: url.to_string(),
+                            compression: None,
+                            success_ref: None,
                         },
                     )?)
                     .await?;
@@ -171,7 +173,7 @@ mod tests {
         let source = pkg
             .source
             .drain(..)
-            .flat_map(|v| serde_json::from_value(v))
+            .flat_map(serde_json::from_value)
             .collect::<Vec<Source>>();
         assert_eq!(
             pkg,
@@ -226,7 +228,7 @@ mod tests {
         let source = pkg
             .source
             .drain(..)
-            .flat_map(|v| serde_json::from_value(v))
+            .flat_map(serde_json::from_value)
             .collect::<Vec<Source>>();
         assert_eq!(
             pkg,

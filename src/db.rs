@@ -137,6 +137,30 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_ref(
+        &self,
+        chksum: &str,
+        vendor: &str,
+        package: &str,
+        version: &str,
+    ) -> Result<Option<Ref>> {
+        let result = sqlx::query_as(
+            "SELECT *
+            FROM refs
+            WHERE chksum = $1
+            AND vendor = $2
+            AND package = $3
+            AND version = $4",
+        )
+        .bind(chksum)
+        .bind(vendor)
+        .bind(package)
+        .bind(version)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
     pub async fn get_all_refs_for(&self, chksum: &str) -> Result<Vec<RefView>> {
         let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *
@@ -325,6 +349,20 @@ impl Client {
             .fetch_optional(&self.pool)
             .await?;
         Ok(result)
+    }
+
+    pub async fn get_all_sboms(&self) -> Result<Vec<Sbom>> {
+        let mut result = sqlx::query_as(
+            "SELECT *
+            FROM sboms",
+        )
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            rows.push(row);
+        }
+        Ok(rows)
     }
 
     pub async fn get_sbom_with_strain(&self, chksum: &str, strain: &str) -> Result<Option<Sbom>> {
@@ -584,6 +622,8 @@ impl Task {
 pub enum TaskData {
     FetchTar {
         url: String,
+        compression: Option<String>,
+        success_ref: Option<DownloadRef>,
     },
     PacmanGitSnapshot {
         vendor: String,
@@ -608,6 +648,16 @@ pub enum TaskData {
     GitSnapshot {
         url: String,
     },
+    IndexSbom {
+        chksum: String,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownloadRef {
+    pub vendor: String,
+    pub package: String,
+    pub version: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

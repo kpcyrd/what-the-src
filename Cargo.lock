@@ -2947,6 +2947,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "url-escape"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44e0ce4d1246d075ca5abec4b41d33e87a6054d08e2366b63205665e950db218"
+dependencies = [
+ "percent-encoding",
+]
+
+[[package]]
 name = "urlencoding"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3189,6 +3198,7 @@ dependencies = [
  "tokio-tar",
  "tokio-util",
  "toml",
+ "url-escape",
  "warp",
  "warp-embed",
  "yarn-lock-parser",

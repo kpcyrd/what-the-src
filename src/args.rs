@@ -55,7 +55,8 @@ pub enum Plumbing {
     SyncHomebrew(SyncHomebrew),
     SyncGuix(SyncGuix),
     AddRef(AddRef),
-    Reindex(Reindex),
+    ReindexUrl(ReindexUrl),
+    ReindexSbom(ReindexSbom),
 }
 
 /// Ingest a .tar into the archive
@@ -221,7 +222,7 @@ pub struct AddRef {
 
 /// Requeue all known urls
 #[derive(Debug, Parser)]
-pub struct Reindex {
+pub struct ReindexUrl {
     /// Only queue urls containing this string
     #[arg(long)]
     pub filter: Option<String>,
@@ -231,4 +232,15 @@ pub struct Reindex {
     /// Only reindex items that haven't been imported the last X days
     #[arg(long)]
     pub age: Option<i64>,
+}
+
+/// Reindex all known sboms
+#[derive(Debug, Parser)]
+pub struct ReindexSbom {
+    /// Only queue sboms of this strain
+    #[arg(long)]
+    pub strain: Option<String>,
+    /// Upper limit of tasks to schedule
+    #[arg(long)]
+    pub limit: Option<usize>,
 }

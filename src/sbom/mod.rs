@@ -79,6 +79,7 @@ pub struct Package {
     pub name: String,
     pub version: String,
     pub checksum: Option<String>,
+    pub official_registry: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -99,6 +100,51 @@ pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
     }
 }
 
+pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
+    match sbom.strain() {
+        cargo::STRAIN => {
+            for pkg in sbom.to_packages()? {
+                let Some(chksum) = pkg.checksum else { continue };
+
+                if !pkg.official_registry {
+                    continue;
+                }
+
+                let (has_artifact, has_ref) = tokio::join!(
+                    db.resolve_artifact(&chksum),
+                    db.get_ref(&chksum, cargo::VENDOR, &pkg.name, &pkg.version),
+                );
+                if has_artifact?.is_some() && has_ref?.is_some() {
+                    continue;
+                }
+
+                let url = format!(
+                    "https://crates.io/api/v1/crates/{}/{}/download",
+                    url_escape::encode_component(&pkg.name),
+                    url_escape::encode_component(&pkg.version),
+                );
+                info!("Adding download task url={url:?}");
+                db.insert_task(&db::Task::new(
+                    format!("fetch:{url}"),
+                    &db::TaskData::FetchTar {
+                        url,
+                        compression: Some("gz".to_string()),
+                        success_ref: Some(db::DownloadRef {
+                            vendor: cargo::VENDOR.to_string(),
+                            package: pkg.name.to_string(),
+                            version: pkg.version.to_string(),
+                        }),
+                    },
+                )?)
+                .await?;
+            }
+        }
+        yarn::STRAIN => (),
+        _ => (),
+    }
+    Ok(())
+}
+
 pub async fn run(args: &args::IngestSbom) -> Result<()> {
     let db = db::Client::create().await?;
 
@@ -106,6 +152,7 @@ pub async fn run(args: &args::IngestSbom) -> Result<()> {
     let sbom = Sbom::new(&args.strain, data)?;
 
     db.insert_sbom(&sbom).await?;
+    index(&db, &sbom).await?;
 
     Ok(())
 }

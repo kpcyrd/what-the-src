@@ -26,6 +26,7 @@ impl YarnLock {
                 name: entry.name.to_string(),
                 version: entry.version.to_string(),
                 checksum,
+                official_registry: false,
             });
         }
         Ok(ParsedLock { packages })
