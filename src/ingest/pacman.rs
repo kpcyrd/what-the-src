@@ -180,6 +180,7 @@ pub fn task_for_url(url: &str) -> Option<Task> {
                     &TaskData::FetchTar {
                         url: url.to_string(),
                         compression: None,
+                        success_ref: None,
                     },
                 )
                 .ok()

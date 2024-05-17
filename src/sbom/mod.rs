@@ -120,6 +120,11 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     &db::TaskData::FetchTar {
                         url,
                         compression: Some("gz".to_string()),
+                        success_ref: Some(db::DownloadRef {
+                            vendor: "crates.io".to_string(),
+                            package: pkg.name.to_string(),
+                            version: pkg.version.to_string(),
+                        }),
                     },
                 )?)
                 .await?;

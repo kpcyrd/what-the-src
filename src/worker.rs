@@ -37,7 +37,11 @@ impl Worker {
         let data = task.data()?;
 
         match data {
-            TaskData::FetchTar { url, compression } => {
+            TaskData::FetchTar {
+                url,
+                compression,
+                success_ref,
+            } => {
                 // After importing entire distros, this is the only software I struggle with.
                 // This clown browser:
                 //  - has >1 million source files
@@ -73,7 +77,19 @@ impl Worker {
                     None
                 };
 
-                ingest::tar::stream_data(&self.db, reader, compression).await?;
+                // If there's an "on success" hook, insert it
+                let summary = ingest::tar::stream_data(&self.db, reader, compression).await?;
+                if let Some(pkg) = success_ref {
+                    let r = db::Ref {
+                        chksum: summary.outer_digests.sha256,
+                        vendor: pkg.vendor,
+                        package: pkg.package,
+                        version: pkg.version,
+                        filename: Some(url),
+                    };
+                    info!("insert: {r:?}");
+                    self.db.insert_ref(&r).await?;
+                }
             }
             TaskData::PacmanGitSnapshot {
                 vendor,

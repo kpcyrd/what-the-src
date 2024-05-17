@@ -585,6 +585,7 @@ pub enum TaskData {
     FetchTar {
         url: String,
         compression: Option<String>,
+        success_ref: Option<DownloadRef>,
     },
     PacmanGitSnapshot {
         vendor: String,
@@ -612,6 +613,13 @@ pub enum TaskData {
     IndexSbom {
         chksum: String,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownloadRef {
+    pub vendor: String,
+    pub package: String,
+    pub version: String,
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]

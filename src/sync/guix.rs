@@ -131,6 +131,7 @@ pub async fn run(args: &args::SyncGuix) -> Result<()> {
                         &TaskData::FetchTar {
                             url: url.to_string(),
                             compression: None,
+                            success_ref: None,
                         },
                     )?)
                     .await?;
