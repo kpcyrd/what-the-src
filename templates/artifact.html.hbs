@@ -18,10 +18,11 @@ for alias
 </div>
 {{/if}}
 
-{{~#if refs}}
-<h2>Build input of</h2>
-<ul>
 {{#each refs}}
+{{~#if this.refs}}
+<h2>{{this.title}}</h2>
+<ul>
+{{#each this.refs}}
 <li class="word-wrap">
 <b>{{this.display_vendor}}:</b>
 {{#if this.href}}
@@ -40,6 +41,7 @@ for alias
 {{/each}}
 </ul>
 {{/if}}
+{{/each}}
 
 {{~#if sbom_refs}}
 <h2>Dependency Lockfiles</h2>
