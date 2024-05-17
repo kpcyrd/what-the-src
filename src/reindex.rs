@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use sqlx::types::chrono::Utc;
 
 pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
@@ -53,8 +54,10 @@ pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
     let sboms = db.get_all_sboms().await?;
     let mut scheduled = 0;
     for sbom in sboms {
-        if args.strain.is_some() && args.strain != Some(sbom.strain) {
-            continue;
+        if let Some(strain) = &args.strain {
+            if *strain != sbom.strain {
+                continue;
+            }
         }
 
         if let Some(limit) = &args.limit {
@@ -64,13 +67,17 @@ pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
             }
         }
 
-        let chksum = sbom.chksum;
-        let task = db::Task::new(
-            format!("sbom:{chksum}"),
-            &db::TaskData::IndexSbom { chksum },
-        )?;
-        info!("Inserting task: {task:?}");
-        db.insert_task(&task).await?;
+        let chksum = &sbom.chksum;
+        let sbom = match sbom::Sbom::try_from(&sbom) {
+            Ok(sbom) => sbom,
+            Err(err) => {
+                error!("Failed to parse sbom: {err:#}");
+                continue;
+            }
+        };
+        let strain = sbom.strain();
+        info!("Indexing sbom ({strain}: {chksum:?}");
+        sbom::index(&db, &sbom).await?;
         scheduled += 1;
     }
 
