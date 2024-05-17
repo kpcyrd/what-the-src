@@ -90,7 +90,10 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                         info!("url={url:?}");
                         db.insert_task(&Task::new(
                             format!("fetch:{url}"),
-                            &TaskData::FetchTar { url },
+                            &TaskData::FetchTar {
+                                url,
+                                compression: None,
+                            },
                         )?)
                         .await?;
                     }

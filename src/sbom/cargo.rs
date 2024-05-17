@@ -19,7 +19,7 @@ impl CargoLock {
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct ParsedLock {
-    version: u8,
+    version: Option<u8>,
     #[serde(rename = "package")]
     packages: VecDeque<serde_json::Value>,
 }

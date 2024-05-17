@@ -115,9 +115,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                         let chksum = db.insert_sbom(&sbom).await?;
                         sbom_refs.push(sbom::Ref {
                             strain: sbom.strain(),
-                            chksum,
+                            chksum: chksum.clone(),
                             path: path.clone(),
                         });
+                        db.insert_task(&db::Task::new(
+                            format!("sbom:{chksum}"),
+                            &db::TaskData::IndexSbom { chksum },
+                        )?)
+                        .await?;
                     }
                 }
 

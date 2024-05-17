@@ -584,6 +584,7 @@ impl Task {
 pub enum TaskData {
     FetchTar {
         url: String,
+        compression: Option<String>,
     },
     PacmanGitSnapshot {
         vendor: String,
@@ -607,6 +608,9 @@ pub enum TaskData {
     },
     GitSnapshot {
         url: String,
+    },
+    IndexSbom {
+        chksum: String,
     },
 }
 

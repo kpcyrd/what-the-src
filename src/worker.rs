@@ -2,6 +2,7 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
+use crate::sbom;
 use crate::utils;
 use std::sync::Arc;
 use tokio::time::{self, Duration};
@@ -36,7 +37,7 @@ impl Worker {
         let data = task.data()?;
 
         match data {
-            TaskData::FetchTar { url } => {
+            TaskData::FetchTar { url, compression } => {
                 // After importing entire distros, this is the only software I struggle with.
                 // This clown browser:
                 //  - has >1 million source files
@@ -60,7 +61,9 @@ impl Worker {
                 let reader = self.http.fetch(&url).await?;
 
                 // TODO: do this stuff on the fly
-                let compression = if url.ends_with(".gz") || url.ends_with(".tgz") {
+                let compression = if let Some(compression) = &compression {
+                    Some(compression.as_str())
+                } else if url.ends_with(".gz") || url.ends_with(".tgz") {
                     Some("gz")
                 } else if url.ends_with(".xz") {
                     Some("xz")
@@ -163,6 +166,12 @@ impl Worker {
             TaskData::GitSnapshot { url } => {
                 let git = url.parse::<ingest::git::GitUrl>()?;
                 ingest::git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
+            }
+            TaskData::IndexSbom { chksum } => {
+                if let Some(sbom) = self.db.get_sbom(&chksum).await? {
+                    let sbom = sbom::Sbom::try_from(&sbom)?;
+                    sbom::index(&self.db, &sbom).await?;
+                }
             }
         }
 

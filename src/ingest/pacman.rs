@@ -54,6 +54,11 @@ impl Snapshot {
                         let sbom = sbom::Sbom::new(strain, buf)?;
                         let chksum = db.insert_sbom(&sbom).await?;
                         info!("Inserted sbom {:?}: {chksum:?}", sbom.strain());
+                        db.insert_task(&db::Task::new(
+                            format!("sbom:{chksum}"),
+                            &db::TaskData::IndexSbom { chksum },
+                        )?)
+                        .await?;
                     }
                 }
             }
@@ -174,6 +179,7 @@ pub fn task_for_url(url: &str) -> Option<Task> {
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {
                         url: url.to_string(),
+                        compression: None,
                     },
                 )
                 .ok()

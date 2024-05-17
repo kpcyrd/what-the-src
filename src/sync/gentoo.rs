@@ -236,6 +236,7 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {
                         url: url.to_string(),
+                        compression: None,
                     },
                 )?)
                 .await?;
