@@ -47,10 +47,13 @@ pub struct Packagev3 {
 
 impl From<Packagev3> for sbom::Package {
     fn from(sbom: Packagev3) -> Self {
+        let official_registry =
+            sbom.source.as_deref() == Some("registry+https://github.com/rust-lang/crates.io-index");
         Self {
             name: sbom.name,
             version: sbom.version,
             checksum: sbom.checksum.map(|chksum| format!("sha256:{chksum}")),
+            official_registry,
         }
     }
 }
@@ -92,6 +95,7 @@ checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
                         "sha256:b2969dcb958b36655471fc61f7e416fa76033bdd4bfed0678d8fee1e2d07a1f0"
                             .to_string()
                     ),
+                    official_registry: true,
                 },
                 Package {
                     name: "anyhow".to_string(),
@@ -100,6 +104,7 @@ checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
                         "sha256:080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
                             .to_string()
                     ),
+                    official_registry: true,
                 },
             ]
         );

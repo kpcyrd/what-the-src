@@ -79,6 +79,7 @@ pub struct Package {
     pub name: String,
     pub version: String,
     pub checksum: Option<String>,
+    pub official_registry: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -104,6 +105,10 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
         cargo::STRAIN => {
             for pkg in sbom.to_packages()? {
                 let Some(chksum) = pkg.checksum else { continue };
+
+                if !pkg.official_registry {
+                    continue;
+                }
 
                 let (has_artifact, has_ref) = tokio::join!(
                     db.resolve_artifact(&chksum),
