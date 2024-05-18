@@ -72,7 +72,12 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
     }
 
     // Checking out a single commit occupies 40GB disk
-    if git.url == "https://chromium.googlesource.com/chromium/src.git" {
+    if [
+        "https://chromium.googlesource.com/chromium/src.git",
+        "https://github.com/chromium/chromium.git",
+    ]
+    .contains(&git.url.as_str())
+    {
         info!("Detected chromium, skipping 🤡: {:?}", git.url);
         return Ok(());
     }
