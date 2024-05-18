@@ -71,6 +71,12 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         fs::remove_dir_all(&path).await?;
     }
 
+    // Checking out a single commit occupies 40GB disk
+    if git.url == "https://chromium.googlesource.com/chromium/src.git" {
+        info!("Detected chromium, skipping 🤡: {:?}", git.url);
+        return Ok(());
+    }
+
     // run git clone
     info!("Setting up git repository");
     let status = process::Command::new("git")
