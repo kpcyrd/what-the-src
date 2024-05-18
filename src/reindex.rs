@@ -75,9 +75,13 @@ pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
                 continue;
             }
         };
+
         let strain = sbom.strain();
         info!("Indexing sbom ({strain}: {chksum:?}");
-        sbom::index(&db, &sbom).await?;
+        if let Err(err) = sbom::index(&db, &sbom).await {
+            error!("Failed to index sbom: {err:#}");
+            continue;
+        }
         scheduled += 1;
     }
 
