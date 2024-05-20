@@ -1,17 +1,25 @@
 use crate::errors::*;
 use futures::TryStreamExt;
+use std::time::Duration;
 use tokio::fs;
 use tokio::io::{self, AsyncRead};
 use tokio_util::io::StreamReader;
+
+pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+pub const READ_TIMEOUT: Duration = Duration::from_secs(60);
+// do not immediately give away who we are, version string is from Debian bookworm
+pub const USER_AGENT: &str = "curl/7.88.1";
 
 pub fn http_client(socks5: Option<&String>) -> Result<HttpClient> {
     let mut http = reqwest::ClientBuilder::new();
     if let Some(socks5) = socks5 {
         http = http.proxy(reqwest::Proxy::all(socks5)?);
     }
-    // do not immediately give away who we are, version string is from Debian bookworm
-    http = http.user_agent("curl/7.88.1");
-    let http = http.build()?;
+    let http = http
+        .user_agent(USER_AGENT)
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
+        .build()?;
     Ok(HttpClient { reqwest: http })
 }
 
