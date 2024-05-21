@@ -15,6 +15,7 @@ use tokio_tar::{Archive, EntryType};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub path: String,
+    pub mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub digest: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -59,7 +60,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         let mut entries = tar.entries()?;
         while let Some(entry) = entries.next().await {
             let mut entry = entry?;
-            let (path, filename, is_file, links_to) = {
+            let (path, mode, filename, is_file, links_to) = {
                 let header = entry.header();
                 let (is_file, links_to) = match header.entry_type() {
                     EntryType::XGlobalHeader => continue,
@@ -85,7 +86,13 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                 let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
 
                 let path = path.to_string_lossy();
-                (path.into_owned(), filename, is_file, links_to)
+                (
+                    path.into_owned(),
+                    header.mode().ok(),
+                    filename,
+                    is_file,
+                    links_to,
+                )
             };
 
             let digest = if is_file {
@@ -137,6 +144,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
             let entry = Entry {
                 path: path.to_string(),
+                mode: mode.map(|mode| format!("0o{mode:o}")),
                 digest,
                 links_to,
             };
