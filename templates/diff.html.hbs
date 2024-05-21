@@ -44,7 +44,9 @@ trim
 {{/if}}
 
 <pre class="x-overflow">
-{{diff}}
+{{#each diff}}
+<span class="{{diff_style this}}">{{this}}</span>
+{{/each}}
 </pre>
 
 <p>Return to <a href="/">home page</a>.</p>

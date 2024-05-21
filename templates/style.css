@@ -42,3 +42,18 @@ footer {
     text-align: center;
     margin-top: 25px;
 }
+
+.diff-add {
+    color: #168a16;
+    font-weight: bold;
+}
+
+.diff-rm {
+    color: #ce0000;
+    font-weight: bold;
+}
+
+.diff-hunk {
+    color: #4d4d4d;
+    font-weight: bold;
+}

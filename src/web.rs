@@ -77,6 +77,15 @@ handlebars::handlebars_helper!(diff_toggle: |diff: Diff, key: String| {
     diff.to_string()
 });
 
+handlebars::handlebars_helper!(diff_style: |line: String| {
+    match line.chars().next() {
+        Some('+') => "diff-add",
+        Some('-') => "diff-rm",
+        Some('@') => "diff-hunk",
+        _ => "",
+    }
+});
+
 impl<'a> Handlebars<'a> {
     fn new() -> Result<Handlebars<'a>> {
         let mut hbs = handlebars::Handlebars::new();
@@ -85,6 +94,7 @@ impl<'a> Handlebars<'a> {
         hbs.register_helper("format_num", Box::new(format_num));
         hbs.register_helper("pad_right", Box::new(pad_right));
         hbs.register_helper("diff_toggle", Box::new(diff_toggle));
+        hbs.register_helper("diff_style", Box::new(diff_style));
         Ok(Handlebars { hbs })
     }
 
@@ -334,14 +344,18 @@ fn process_files_list(
     let Some(value) = value else { return Ok(None) };
     let mut list = serde_json::from_value::<Vec<ingest::tar::Entry>>(value)?;
     if trimmed {
-        for item in &mut list {
-            item.path = item
-                .path
-                .split_once('/')
-                .map(|(_a, b)| b)
-                .unwrap_or(&item.path)
-                .to_string();
-        }
+        list = list
+            .into_iter()
+            .filter_map(|mut item| {
+                item.path = item
+                    .path
+                    .split_once('/')
+                    .map(|(_a, b)| b)
+                    .unwrap_or(&item.path)
+                    .to_string();
+                (!item.path.is_empty()).then_some(item)
+            })
+            .collect();
     }
     if sorted {
         list.sort_by(|a, b| a.path.partial_cmp(&b.path).unwrap());
@@ -366,12 +380,13 @@ impl FromStr for Diff {
         };
         let mut diff = Diff::default();
 
-        let s = if let Some(s) = s.strip_prefix("-sorted") {
-            diff.sorted = true;
-            s
-        } else {
-            s
-        };
+        let s = s
+            .strip_prefix("-sorted")
+            .map(|s| {
+                diff.sorted = true;
+                s
+            })
+            .unwrap_or(&s);
 
         match s {
             "" => (),
@@ -433,12 +448,13 @@ async fn diff(
 
     let diff = diffy::create_file_patch(&artifact1, &artifact2, &diff_from, &diff_to);
     let diff = diff.to_string();
+    let diff_lines = diff.split('\n').collect::<Vec<_>>();
 
     let html = hbs
         .render(
             "diff.html.hbs",
             &json!({
-                "diff": diff,
+                "diff": diff_lines,
                 "diff_from": diff_from,
                 "diff_to": diff_to,
                 "options": options,
