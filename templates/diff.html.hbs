@@ -3,27 +3,43 @@ diff {{diff_from}}:{{diff_to}} - What the src?!
 {{/inline}}
 
 {{#*inline "page"}}
-{{#if sorted}}
-{{#if trimmed}}
-<h1 class="title-chksum word-wrap">diff (sorted, -p1)</h1>
+<h1 class="title-chksum word-wrap">diff
+{{~#if (or sorted trimmed)}}
+ (
+{{~#if sorted}}
+sorted
+{{~#if trimmed}}
+,
 {{else}}
-<h1 class="title-chksum word-wrap">diff (sorted)</h1>
+)
 {{/if}}
-{{else}}
-<h1 class="title-chksum word-wrap">diff</h1>
 {{/if}}
+{{#if (and trim_left trim_right)}}
+-p1)
+{{else if trim_left}}
+-p1 left)
+{{else if trim_right}}
+-p1 right)
+{{/if}}
+{{/if}}
+</h1>
 
 <a href="/artifact/{{diff_from}}">diff from</a> |
 <a href="/artifact/{{diff_to}}">diff to</a> |
+
 {{#if sorted}}
-{{#if trimmed}}
-<a href="/diff-sorted/{{diff_from}}/{{diff_to}}">untrimmed</a> |
+<a href="/{{diff_toggle options "sorted"}}/{{diff_from}}/{{diff_to}}">original order</a> |
 {{else}}
-<a href="/diff-sorted-trimmed/{{diff_from}}/{{diff_to}}">trimmed</a> |
+<a href="/{{diff_toggle options "sorted"}}/{{diff_from}}/{{diff_to}}">sorted</a> |
 {{/if}}
-<a href="/diff/{{diff_from}}/{{diff_to}}">original</a>
+
+{{#if trimmed}}
+<a href="/{{diff_toggle options "trimmed"}}/{{diff_from}}/{{diff_to}}">untrimmed</a>
 {{else}}
-<a href="/diff-sorted/{{diff_from}}/{{diff_to}}">sorted</a>
+trim
+[<a href="/{{diff_toggle options "trim_left"}}/{{diff_from}}/{{diff_to}}">left</a>,
+<a href="/{{diff_toggle options "trim_right"}}/{{diff_from}}/{{diff_to}}">right</a>,
+<a href="/{{diff_toggle options "trimmed"}}/{{diff_from}}/{{diff_to}}">both</a>]
 {{/if}}
 
 <pre class="x-overflow">

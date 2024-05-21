@@ -7,11 +7,13 @@ use diffy_fork_filenames as diffy;
 use log::error;
 use num_format::{Locale, ToFormattedString};
 use rust_embed::RustEmbed;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
+use std::fmt;
 use std::result;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::task::JoinSet;
@@ -59,6 +61,22 @@ handlebars::handlebars_helper!(pad_right: |v: String, width: i64| {
     format!("{:<width$}", v, width=width as usize)
 });
 
+handlebars::handlebars_helper!(diff_toggle: |diff: Diff, key: String| {
+    let mut diff = diff;
+    match key.as_str() {
+        "sorted" => diff.sorted ^= true,
+        "trimmed" => {
+            let trimmed = diff.trim_left || diff.trim_right;
+            diff.trim_left = !trimmed;
+            diff.trim_right = !trimmed;
+        },
+        "trim_left" => diff.trim_left ^= true,
+        "trim_right" => diff.trim_right ^= true,
+        _ => (),
+    }
+    diff.to_string()
+});
+
 impl<'a> Handlebars<'a> {
     fn new() -> Result<Handlebars<'a>> {
         let mut hbs = handlebars::Handlebars::new();
@@ -66,6 +84,7 @@ impl<'a> Handlebars<'a> {
         hbs.register_embed_templates::<Assets>()?;
         hbs.register_helper("format_num", Box::new(format_num));
         hbs.register_helper("pad_right", Box::new(pad_right));
+        hbs.register_helper("diff_toggle", Box::new(diff_toggle));
         Ok(Handlebars { hbs })
     }
 
@@ -309,6 +328,7 @@ async fn stats(
 
 fn process_files_list(
     value: Option<serde_json::Value>,
+    sorted: bool,
     trimmed: bool,
 ) -> Result<Option<serde_json::Value>> {
     let Some(value) = value else { return Ok(None) };
@@ -323,18 +343,77 @@ fn process_files_list(
                 .to_string();
         }
     }
-    list.sort_by(|a, b| a.path.partial_cmp(&b.path).unwrap());
+    if sorted {
+        list.sort_by(|a, b| a.path.partial_cmp(&b.path).unwrap());
+    }
     let value = serde_json::to_value(&list)?;
     Ok(Some(value))
+}
+
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Diff {
+    trim_left: bool,
+    trim_right: bool,
+    sorted: bool,
+}
+
+impl FromStr for Diff {
+    type Err = ();
+
+    fn from_str(s: &str) -> std::result::Result<Diff, ()> {
+        let Some(s) = s.strip_prefix("diff") else {
+            return Err(());
+        };
+        let mut diff = Diff::default();
+
+        let s = if let Some(s) = s.strip_prefix("-sorted") {
+            diff.sorted = true;
+            s
+        } else {
+            s
+        };
+
+        match s {
+            "" => (),
+            "-trimmed" => {
+                diff.trim_left = true;
+                diff.trim_right = true;
+            }
+            "-left-trimmed" => {
+                diff.trim_left = true;
+            }
+            "-right-trimmed" => {
+                diff.trim_right = true;
+            }
+            _ => return Err(()),
+        }
+
+        Ok(diff)
+    }
+}
+
+impl fmt::Display for Diff {
+    fn fmt(&self, w: &mut fmt::Formatter) -> fmt::Result {
+        w.write_str("diff")?;
+        if self.sorted {
+            w.write_str("-sorted")?;
+        }
+        match (self.trim_left, self.trim_right) {
+            (true, true) => w.write_str("-trimmed")?,
+            (true, false) => w.write_str("-left-trimmed")?,
+            (false, true) => w.write_str("-right-trimmed")?,
+            (false, false) => (),
+        }
+        Ok(())
+    }
 }
 
 async fn diff(
     hbs: Arc<Handlebars<'_>>,
     db: Arc<db::Client>,
+    options: Diff,
     diff_from: String,
     diff_to: String,
-    sorted: bool,
-    trimmed: bool,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
     let Some(mut artifact1) = db.resolve_artifact(&diff_from).await? else {
         return Err(reject::not_found());
@@ -344,9 +423,9 @@ async fn diff(
         return Err(reject::not_found());
     };
 
-    if sorted {
-        artifact1.files = process_files_list(artifact1.files, trimmed)?;
-        artifact2.files = process_files_list(artifact2.files, trimmed)?;
+    if options != Diff::default() {
+        artifact1.files = process_files_list(artifact1.files, options.sorted, options.trim_left)?;
+        artifact2.files = process_files_list(artifact2.files, options.sorted, options.trim_right)?;
     }
 
     let artifact1 = hbs.render_archive(&artifact1)?;
@@ -362,8 +441,11 @@ async fn diff(
                 "diff": diff,
                 "diff_from": diff_from,
                 "diff_to": diff_to,
-                "sorted": sorted,
-                "trimmed": trimmed,
+                "options": options,
+                "sorted": options.sorted,
+                "trimmed": options.trim_left || options.trim_right,
+                "trim_left": options.trim_left,
+                "trim_right": options.trim_right,
             }),
         )
         .map_err(Error::from)?;
@@ -431,32 +513,14 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::query::<StatsQuery>())
         .and_then(stats)
         .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
-    let diff_original = warp::get()
+    let diff = warp::get()
         .and(hbs.clone())
         .and(db.clone())
-        .and(warp::path("diff"))
+        .and(warp::path::param::<Diff>())
         .and(warp::path::param())
         .and(warp::path::param())
         .and(warp::path::end())
-        .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, false, false))
-        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
-    let diff_sorted = warp::get()
-        .and(hbs.clone())
-        .and(db.clone())
-        .and(warp::path("diff-sorted"))
-        .and(warp::path::param())
-        .and(warp::path::param())
-        .and(warp::path::end())
-        .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, true, false))
-        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
-    let diff_sorted_trimmed = warp::get()
-        .and(hbs)
-        .and(db)
-        .and(warp::path("diff-sorted-trimmed"))
-        .and(warp::path::param())
-        .and(warp::path::param())
-        .and(warp::path::end())
-        .and_then(|hbs, db, diff_from, diff_to| diff(hbs, db, diff_from, diff_to, true, true))
+        .and_then(diff)
         .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let style = warp::get()
         .and(warp::path("assets"))
@@ -472,9 +536,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
                 .or(sbom)
                 .or(search)
                 .or(stats)
-                .or(diff_original)
-                .or(diff_sorted)
-                .or(diff_sorted_trimmed)
+                .or(diff)
                 .or(style),
         )
         .recover(rejection);
@@ -608,6 +670,61 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
 sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0/original_file
                                                                          foo-1.0/hardlink_file link to foo-1.0/original_file
 "
+        );
+    }
+
+    #[test]
+    fn test_parse_diff_paths() {
+        let diff = "diff".parse::<Diff>().unwrap();
+        assert_eq!(diff, Diff::default());
+
+        let diff = "diff-sorted".parse::<Diff>().unwrap();
+        assert_eq!(
+            diff,
+            Diff {
+                sorted: true,
+                ..Default::default()
+            }
+        );
+
+        let diff = "diff-sorted-trimmed".parse::<Diff>().unwrap();
+        assert_eq!(
+            diff,
+            Diff {
+                sorted: true,
+                trim_left: true,
+                trim_right: true,
+            }
+        );
+
+        let diff = "diff-trimmed".parse::<Diff>().unwrap();
+        assert_eq!(
+            diff,
+            Diff {
+                sorted: false,
+                trim_left: true,
+                trim_right: true,
+            }
+        );
+
+        let diff = "diff-left-trimmed".parse::<Diff>().unwrap();
+        assert_eq!(
+            diff,
+            Diff {
+                sorted: false,
+                trim_left: true,
+                trim_right: false,
+            }
+        );
+
+        let diff = "diff-sorted-right-trimmed".parse::<Diff>().unwrap();
+        assert_eq!(
+            diff,
+            Diff {
+                sorted: true,
+                trim_left: false,
+                trim_right: true,
+            }
         );
     }
 }
