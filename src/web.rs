@@ -552,7 +552,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let style = warp::get()
         .and(warp::path("assets"))
-        .and(warp::path("style.css"))
+        .and(warp::path(asset_name_css()))
         .and(warp::path::end())
         .and(warp_embed::embed_one(&Assets, "style.css"))
         .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
