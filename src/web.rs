@@ -9,6 +9,7 @@ use num_format::{Locale, ToFormattedString};
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::fmt;
@@ -52,6 +53,16 @@ struct Handlebars<'a> {
     hbs: handlebars::Handlebars<'a>,
 }
 
+fn asset_name_css() -> String {
+    let mut hasher = Sha256::new();
+    if let Some(css) = Assets::get("style.css") {
+        hasher.update(css.data);
+    }
+    let mut id = hex::encode(hasher.finalize());
+    id.truncate(7);
+    format!("style-{id}.css")
+}
+
 handlebars::handlebars_helper!(format_num: |v: i64, width: i64| {
     let v = v.to_formatted_string(&Locale::en);
     format!("{:>width$}", v, width=width as usize)
@@ -91,6 +102,7 @@ impl<'a> Handlebars<'a> {
         let mut hbs = handlebars::Handlebars::new();
         hbs.set_prevent_indent(true);
         hbs.register_embed_templates::<Assets>()?;
+        hbs.register_partial("asset_name_css", asset_name_css())?;
         hbs.register_helper("format_num", Box::new(format_num));
         hbs.register_helper("pad_right", Box::new(pad_right));
         hbs.register_helper("diff_toggle", Box::new(diff_toggle));
@@ -386,7 +398,7 @@ impl FromStr for Diff {
                 diff.sorted = true;
                 s
             })
-            .unwrap_or(&s);
+            .unwrap_or(s);
 
         match s {
             "" => (),
