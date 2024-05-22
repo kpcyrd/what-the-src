@@ -149,6 +149,16 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     .unwrap_or(&pkg.name);
                 let version = &pkg.version;
 
+                if let Some(chksum) = pkg.checksum {
+                    let (has_artifact, has_ref) = tokio::join!(
+                        db.resolve_artifact(&chksum),
+                        db.get_ref(&chksum, yarn::VENDOR, &pkg.name, &pkg.version),
+                    );
+                    if has_artifact?.is_some() && has_ref?.is_some() {
+                        continue;
+                    }
+                }
+
                 let url =
                     format!("https://registry.yarnpkg.com/{full_name}/-/{suffix}-{version}.tgz");
 
