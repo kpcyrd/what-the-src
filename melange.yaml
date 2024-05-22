@@ -1,0 +1,39 @@
+package:
+  name: what-the-src
+  version: 0.1.0
+  description: "backend binary"
+  copyright:
+    - license: GPL-3.0-or-later
+  target-architecture:
+    - x86_64
+  dependencies:
+    runtime:
+      - git
+
+environment:
+  contents:
+    repositories:
+      - https://dl-cdn.alpinelinux.org/alpine/edge/main
+      - https://dl-cdn.alpinelinux.org/alpine/edge/community
+    packages:
+      - alpine-baselayout-data
+      - busybox
+      - bzip2-dev
+      - ca-certificates-bundle
+      - cargo
+      - clang
+      - coreutils
+      - mold
+      - postgresql-dev
+      - xz-dev
+      - zstd-dev
+  environment:
+    CARGO_HOME: /var/cache/melange/cargo
+    CARGO_TARGET_DIR: /var/cache/melange/target
+    RUSTFLAGS: "-C linker=clang -C link-arg=-fuse-ld=/usr/bin/mold"
+
+pipeline:
+  - runs: mkdir db
+  - runs: ln -s ../migrations db
+  - runs: cargo build --release --locked --verbose
+  - runs: install -Dm755 "$CARGO_TARGET_DIR/release/what-the-src" -t "${{targets.contextdir}}/usr/bin"
