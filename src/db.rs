@@ -161,6 +161,27 @@ impl Client {
         Ok(result)
     }
 
+    pub async fn get_named_ref(
+        &self,
+        vendor: &str,
+        package: &str,
+        version: &str,
+    ) -> Result<Option<Ref>> {
+        let result = sqlx::query_as(
+            "SELECT *
+            FROM refs
+            WHERE vendor = $1
+            AND package = $2
+            AND version = $3",
+        )
+        .bind(vendor)
+        .bind(package)
+        .bind(version)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
     pub async fn get_all_refs_for(&self, chksum: &str) -> Result<Vec<RefView>> {
         let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *
