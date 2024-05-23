@@ -197,6 +197,22 @@ impl Worker {
                     sbom::index(&self.db, &sbom).await?;
                 }
             }
+            TaskData::VoidLinuxGit {
+                vendor,
+                srcpkg,
+                commit,
+                package,
+                version,
+            } => {
+                debug!("Void Linux: vendor={vendor:?} srcpkg={srcpkg:?} commit={commit:?} package={package:?} version={version:?}");
+                let url =
+                    format!("https://github.com/void-linux/void-packages/archive/{commit}.tar.gz");
+
+                info!("Downloading Void Linux git snapshot: {url:?}");
+                let reader = self.http.fetch(&url).await?;
+                ingest::void::stream_data(&self.db, reader, &vendor, &srcpkg, &package, &version)
+                    .await?;
+            }
         }
 
         Ok(())

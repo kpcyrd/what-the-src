@@ -225,6 +225,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             continue;
         };
 
+        // TODO: check if already known
         if let Some(url) = &entry.url {
             if let Some(task) = task_for_url(url) {
                 db.insert_task(&task).await?;

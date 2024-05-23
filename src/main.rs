@@ -12,6 +12,7 @@ pub mod reindex;
 pub mod sbom;
 pub mod sync;
 pub mod utils;
+pub mod void_template;
 pub mod web;
 pub mod worker;
 
@@ -44,6 +45,7 @@ async fn main() -> Result<()> {
         }
         SubCommand::Plumbing(Plumbing::IngestRpm(args)) => ingest::rpm::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestWolfi(args)) => ingest::wolfi::run(&args).await,
+        SubCommand::Plumbing(Plumbing::IngestVoid(args)) => ingest::void::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestSbom(args)) => sbom::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
@@ -52,6 +54,7 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::SyncGentoo(args)) => sync::gentoo::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncHomebrew(args)) => sync::homebrew::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncGuix(args)) => sync::guix::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncVoid(args)) => sync::void::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexUrl(args)) => reindex::run_url(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexSbom(args)) => reindex::run_sbom(&args).await,

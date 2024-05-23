@@ -61,3 +61,9 @@ what-the-src plumbing sync-guix --vendor guix --fetch 'https://guix.gnu.org/pack
 ```
 what-the-src plumbing sync-apt --vendor ubuntu https://ftp.halifax.rwth-aachen.de/ubuntu/ --release jammy --release jammy-updates --release jammy-security --release jammy-backports --suite main --suite multiverse --suite universe
 ```
+
+### Sync Void Linux
+
+```
+https://repo-fastly.voidlinux.org/current/x86_64-repodata
+```

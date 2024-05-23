@@ -46,6 +46,7 @@ pub enum Plumbing {
     IngestPacmanSnapshot(IngestPacmanSnapshot),
     IngestRpm(IngestRpm),
     IngestWolfi(IngestWolfi),
+    IngestVoid(IngestVoid),
     IngestSbom(IngestSbom),
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
@@ -54,6 +55,7 @@ pub enum Plumbing {
     SyncGentoo(SyncGentoo),
     SyncHomebrew(SyncHomebrew),
     SyncGuix(SyncGuix),
+    SyncVoid(SyncVoid),
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
@@ -113,6 +115,22 @@ pub struct IngestRpm {
 pub struct IngestWolfi {
     #[arg(long)]
     pub vendor: String,
+    #[arg(long)]
+    pub package: String,
+    #[arg(long)]
+    pub version: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Ingest a void package template
+#[derive(Debug, Parser)]
+pub struct IngestVoid {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub srcpkg: String,
     #[arg(long)]
     pub package: String,
     #[arg(long)]
@@ -200,6 +218,16 @@ pub struct SyncHomebrew {
 /// Start an import of a software vendor (guix)
 #[derive(Debug, Parser)]
 pub struct SyncGuix {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (void)
+#[derive(Debug, Parser)]
+pub struct SyncVoid {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]

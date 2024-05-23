@@ -29,6 +29,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             continue;
         }
 
+        // TODO: check if already known
         db.insert_task(&Task::new(
             format!("fetch:{url}"),
             &TaskData::FetchTar {

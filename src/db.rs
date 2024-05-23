@@ -618,6 +618,13 @@ impl From<Ref> for RefView {
                 );
                 (Cow::Borrowed("Ubuntu"), Some(href))
             }
+            "void" => {
+                let href = format!(
+                    "https://voidlinux.org/packages/?arch=x86_64&q={}",
+                    r.package
+                );
+                (Cow::Borrowed("Void Linux"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
@@ -686,6 +693,13 @@ pub enum TaskData {
         origin: String,
         version: String,
         commit: String,
+    },
+    VoidLinuxGit {
+        vendor: String,
+        srcpkg: String,
+        commit: String,
+        package: String,
+        version: String,
     },
     GitSnapshot {
         url: String,

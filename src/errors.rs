@@ -21,6 +21,8 @@ pub enum Error {
     #[error(transparent)]
     Toml(#[from] toml::de::Error),
     #[error(transparent)]
+    Plist(#[from] plist::Error),
+    #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),
