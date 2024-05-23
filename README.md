@@ -65,5 +65,5 @@ what-the-src plumbing sync-apt --vendor ubuntu https://ftp.halifax.rwth-aachen.d
 ### Sync Void Linux
 
 ```
-https://repo-fastly.voidlinux.org/current/x86_64-repodata
+what-the-src plumbing sync-void --vendor void --fetch https://repo-fastly.voidlinux.org/current/x86_64-repodata
 ```

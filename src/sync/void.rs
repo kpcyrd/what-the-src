@@ -56,7 +56,7 @@ pub async fn run(args: &args::SyncVoid) -> Result<()> {
                 todo!()
             };
 
-            if db.get_package(vendor, srcpkg, version).await?.is_some() {
+            if db.get_package(vendor, &pkgname, version).await?.is_some() {
                 debug!("Package is already imported: srcpkg={srcpkg:?} commit={commit:?} package={pkgname:?} version={version:?}");
                 continue;
             }
