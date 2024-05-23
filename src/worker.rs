@@ -212,6 +212,14 @@ impl Worker {
                 let reader = self.http.fetch(&url).await?;
                 ingest::void::stream_data(&self.db, reader, &vendor, &srcpkg, &package, &version)
                     .await?;
+
+                self.db
+                    .insert_package(&db::Package {
+                        vendor,
+                        package,
+                        version,
+                    })
+                    .await?;
             }
         }
 
