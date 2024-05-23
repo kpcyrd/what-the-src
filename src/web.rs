@@ -18,6 +18,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::task::JoinSet;
+use warp::http::Uri;
 use warp::reject;
 use warp::{
     http::{header, HeaderValue, StatusCode},
@@ -276,7 +277,7 @@ async fn sbom(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct SearchQuery {
     q: String,
 }
@@ -286,6 +287,18 @@ async fn search(
     db: Arc<db::Client>,
     search: SearchQuery,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let trimmed = search.q.trim();
+    if trimmed.len() != search.q.len() {
+        let query = serde_urlencoded::to_string(SearchQuery {
+            q: trimmed.to_string(),
+        })
+        .map_err(Error::from)?;
+        let uri = format!("/search?{query}")
+            .parse::<Uri>()
+            .map_err(Error::from)?;
+        return Ok(Box::new(warp::redirect::found(uri)));
+    }
+
     let mut query = search.q.clone();
     query.retain(|c| !"%_".contains(c));
     query.push('%');

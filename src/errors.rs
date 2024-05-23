@@ -41,6 +41,10 @@ pub enum Error {
     #[error(transparent)]
     Regex(#[from] regex::Error),
     #[error(transparent)]
+    InvalidUri(#[from] warp::http::uri::InvalidUri),
+    #[error(transparent)]
+    SerdeUrl(#[from] serde_urlencoded::ser::Error),
+    #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]
     ChildExit(std::process::ExitStatus),
