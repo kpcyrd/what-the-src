@@ -22,11 +22,42 @@ impl Template {
         'outer: while !text.is_empty() {
             if let Some((before, after)) = text.split_once('$') {
                 let vars = [
-                    ("pkgname", self.pkgname.as_ref()),
-                    ("version", self.version.as_ref()),
+                    ("pkgname", self.pkgname.as_deref()),
+                    ("version", self.version.as_deref()),
+                    // https://github.com/void-linux/void-packages/blob/master/common/environment/setup/misc.sh
+                    (
+                        "SOURCEFORGE_SITE",
+                        Some("https://downloads.sourceforge.net/sourceforge"),
+                    ),
+                    (
+                        "NONGNU_SITE",
+                        Some("https://download.savannah.nongnu.org/releases"),
+                    ),
+                    ("UBUNTU_SITE", Some("http://archive.ubuntu.com/ubuntu/pool")),
+                    ("XORG_SITE", Some("https://www.x.org/releases/individual")),
+                    ("DEBIAN_SITE", Some("https://ftp.debian.org/debian/pool")),
+                    ("GNOME_SITE", Some("https://download.gnome.org/sources")),
+                    ("KERNEL_SITE", Some("https://www.kernel.org/pub/linux")),
+                    ("CPAN_SITE", Some("https://www.cpan.org/modules/by-module")),
+                    (
+                        "PYPI_SITE",
+                        Some("https://files.pythonhosted.org/packages/source"),
+                    ),
+                    ("MOZILLA_SITE", Some("https://ftp.mozilla.org/pub")),
+                    ("GNU_SITE", Some("https://ftp.gnu.org/gnu")),
+                    ("FREEDESKTOP_SITE", Some("https://freedesktop.org/software")),
+                    ("KDE_SITE", Some("https://download.kde.org/stable")),
+                    (
+                        "VIDEOLAN_SITE",
+                        Some("https://download.videolan.org/pub/videolan"),
+                    ),
                 ]
                 .into_iter()
-                .chain(self.extra.iter().map(|(key, value)| (*key, Some(value))));
+                .chain(
+                    self.extra
+                        .iter()
+                        .map(|(key, value)| (*key, Some(value.as_str()))),
+                );
 
                 out.push_str(before);
                 let (after, curly) = after
