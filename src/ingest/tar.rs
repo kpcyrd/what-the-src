@@ -15,11 +15,66 @@ use tokio_tar::{Archive, EntryType};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub path: String,
-    pub mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub digest: Option<String>,
+    #[serde(flatten)]
+    pub metadata: Metadata,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Metadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links_to: Option<LinksTo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mtime: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uid: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gid: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groupname: Option<String>,
+}
+
+impl Metadata {
+    fn from_tar_header<R: AsyncRead + Unpin>(
+        entry: &tokio_tar::Entry<R>,
+    ) -> Result<Option<(Self, bool)>> {
+        let header = entry.header();
+        let (is_file, links_to) = match header.entry_type() {
+            EntryType::XGlobalHeader => return Ok(None),
+            EntryType::Regular => (true, None),
+            EntryType::Symlink => {
+                let link = entry.link_name()?.map(|path| {
+                    let path = path.to_string_lossy();
+                    LinksTo::Symbolic(path.into_owned())
+                });
+                (false, link)
+            }
+            EntryType::Link => {
+                let link = entry.link_name()?.map(|path| {
+                    let path = path.to_string_lossy();
+                    LinksTo::Hard(path.into_owned())
+                });
+                (false, link)
+            }
+            _ => (false, None),
+        };
+
+        let metadata = Metadata {
+            mode: header.mode().ok().map(|mode| format!("0o{mode:o}")),
+            links_to,
+            mtime: header.mtime().ok(),
+            uid: header.uid().ok(),
+            username: header.username().ok().flatten().map(String::from),
+            gid: header.gid().ok(),
+            groupname: header.groupname().ok().flatten().map(String::from),
+        };
+        Ok(Some((metadata, is_file)))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,40 +115,13 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         let mut entries = tar.entries()?;
         while let Some(entry) = entries.next().await {
             let mut entry = entry?;
-            let (path, mode, filename, is_file, links_to) = {
-                let header = entry.header();
-                let (is_file, links_to) = match header.entry_type() {
-                    EntryType::XGlobalHeader => continue,
-                    EntryType::Regular => (true, None),
-                    EntryType::Symlink => {
-                        let link = entry.link_name()?.map(|path| {
-                            let path = path.to_string_lossy();
-                            LinksTo::Symbolic(path.into_owned())
-                        });
-                        (false, link)
-                    }
-                    EntryType::Link => {
-                        let link = entry.link_name()?.map(|path| {
-                            let path = path.to_string_lossy();
-                            LinksTo::Hard(path.into_owned())
-                        });
-                        (false, link)
-                    }
-                    _ => (false, None),
-                };
-
-                let path = header.path()?;
-                let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
-
-                let path = path.to_string_lossy();
-                (
-                    path.into_owned(),
-                    header.mode().ok(),
-                    filename,
-                    is_file,
-                    links_to,
-                )
+            let Some((metadata, is_file)) = Metadata::from_tar_header(&entry)? else {
+                continue;
             };
+
+            let path = entry.path()?;
+            let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
+            let path = path.to_string_lossy().into_owned();
 
             let digest = if is_file {
                 let sbom = sbom::detect_from_filename(filename.as_deref());
@@ -144,9 +172,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
             let entry = Entry {
                 path: path.to_string(),
-                mode: mode.map(|mode| format!("0o{mode:o}")),
                 digest,
-                links_to,
+                metadata,
             };
             debug!("Found entry={entry:?}");
 
@@ -200,4 +227,67 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
     stream_data(&db, input, args.compression.as_deref()).await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_minimal_json_format() {
+        let txt = serde_json::to_string_pretty(&Entry {
+            path: "foo-1.0/".to_string(),
+            digest: None,
+            metadata: Metadata {
+                mode: Some("0o775".to_string()),
+                links_to: None,
+                mtime: Some(1337),
+                uid: Some(0),
+                username: None,
+                gid: Some(0),
+                groupname: None,
+            },
+        })
+        .unwrap();
+        assert_eq!(
+            txt,
+            r#"{
+  "path": "foo-1.0/",
+  "mode": "0o775",
+  "mtime": 1337,
+  "uid": 0,
+  "gid": 0
+}"#
+        );
+    }
+
+    #[test]
+    fn test_regular_json_format() {
+        let txt = serde_json::to_string_pretty(&Entry {
+            path: "foo-1.0/original_file".to_string(),
+            digest: None,
+            metadata: Metadata {
+                mode: Some("0o775".to_string()),
+                links_to: None,
+                mtime: Some(1337),
+                uid: Some(1000),
+                username: Some("user".to_string()),
+                gid: Some(1000),
+                groupname: Some("user".to_string()),
+            },
+        })
+        .unwrap();
+        assert_eq!(
+            txt,
+            r#"{
+  "path": "foo-1.0/original_file",
+  "mode": "0o775",
+  "mtime": 1337,
+  "uid": 1000,
+  "username": "user",
+  "gid": 1000,
+  "groupname": "user"
+}"#
+        );
+    }
 }

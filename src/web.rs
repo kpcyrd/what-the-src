@@ -603,33 +603,68 @@ mod tests {
             files: Some(serde_json::to_value([
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/".to_string(),
-                    mode: Some("0o775".to_string()),
                     digest: None,
-                    links_to: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o775".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    }
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/.gitignore".to_string(),
-                    mode: Some("0o664".to_string()),
                     digest: Some("sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984".to_string()),
-                    links_to: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o664".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    }
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/".to_string(),
-                    mode: Some("0o775".to_string()),
                     digest: None,
-                    links_to: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o775".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    }
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/img/".to_string(),
-                    mode: Some("0o775".to_string()),
                     digest: None,
-                    links_to: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o775".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    }
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/img/capture_bold_font.png".to_string(),
-                    mode: Some("0o664".to_string()),
                     digest: Some("sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58".to_string()),
-                    links_to: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o664".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    }
                 }
             ]).unwrap()),
         }).unwrap();
@@ -653,21 +688,42 @@ sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58  cmatrix
                     serde_json::to_value([
                         ingest::tar::Entry {
                             path: "foo-1.0/".to_string(),
-                            mode: Some("0o755".to_string()),
                             digest: None,
-                            links_to: None,
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o755".to_string()),
+                                links_to: None,
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                         ingest::tar::Entry {
                             path: "foo-1.0/original_file".to_string(),
-                            mode: Some("0o644".to_string()),
                             digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
-                            links_to: None,
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o644".to_string()),
+                                links_to: None,
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                         ingest::tar::Entry {
                             path: "foo-1.0/symlink_file".to_string(),
-                            mode: Some("0o777".to_string()),
                             digest: None,
-                            links_to: Some(LinksTo::Symbolic("original_file".to_string())),
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o777".to_string()),
+                                links_to: Some(LinksTo::Symbolic("original_file".to_string())),
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                     ])
                     .unwrap(),
@@ -695,21 +751,42 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
                     serde_json::to_value([
                         ingest::tar::Entry {
                             path: "foo-1.0/".to_string(),
-                            mode: Some("0o644".to_string()),
                             digest: None,
-                            links_to: None,
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o644".to_string()),
+                                links_to: None,
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                         ingest::tar::Entry {
                             path: "foo-1.0/original_file".to_string(),
-                            mode: Some("0o644".to_string()),
                             digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
-                            links_to: None,
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o644".to_string()),
+                                links_to: None,
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                         ingest::tar::Entry {
                             path: "foo-1.0/hardlink_file".to_string(),
-                            mode: Some("0o644".to_string()),
                             digest: None,
-                            links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
+                            metadata: ingest::tar::Metadata {
+                                mode: Some("0o644".to_string()),
+                                links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
+                                mtime: Some(1337),
+                                uid: Some(0),
+                                username: None,
+                                gid: Some(0),
+                                groupname: None,
+                            }
                         },
                     ])
                     .unwrap(),
