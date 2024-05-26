@@ -64,9 +64,12 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
 pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
     let db = db::Client::create().await?;
 
-    let sboms = db.get_all_sboms().await?;
     let mut scheduled = 0;
-    for sbom in sboms {
+    let stream = db.get_all_sboms();
+    tokio::pin!(stream);
+    while let Some(sbom) = stream.next().await {
+        let sbom = sbom?;
+
         if let Some(strain) = &args.strain {
             if *strain != sbom.strain {
                 continue;

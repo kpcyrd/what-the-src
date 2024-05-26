@@ -383,18 +383,19 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn get_all_sboms(&self) -> Result<Vec<Sbom>> {
-        let mut result = sqlx::query_as(
-            "SELECT *
-            FROM sboms",
-        )
-        .fetch(&self.pool);
+    pub fn get_all_sboms(&self) -> impl Stream<Item = Result<Sbom>> {
+        let pool = self.pool.clone();
+        async_stream::stream! {
+            let mut result = sqlx::query_as(
+                "SELECT *
+                FROM sboms",
+            )
+            .fetch(&pool);
 
-        let mut rows = Vec::new();
-        while let Some(row) = result.try_next().await? {
-            rows.push(row);
+            while let Some(row) = result.try_next().await? {
+                yield Ok(row);
+            }
         }
-        Ok(rows)
     }
 
     pub async fn get_sbom_with_strain(&self, chksum: &str, strain: &str) -> Result<Option<Sbom>> {
