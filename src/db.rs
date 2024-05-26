@@ -209,22 +209,6 @@ impl Client {
         Ok(rows)
     }
 
-    pub async fn get_all_refs_for_exact(&self, chksum: &str) -> Result<Vec<RefView>> {
-        let mut result = sqlx::query_as::<_, Ref>(
-            "SELECT *
-            FROM refs
-            WHERE chksum = $1",
-        )
-        .bind(chksum)
-        .fetch(&self.pool);
-
-        let mut rows = Vec::new();
-        while let Some(row) = result.try_next().await? {
-            rows.push(row.into());
-        }
-        Ok(rows)
-    }
-
     pub fn get_all_artifacts_by_age(&self) -> impl Stream<Item = Result<Artifact>> {
         let pool = self.pool.clone();
         async_stream::stream! {

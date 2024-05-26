@@ -32,7 +32,7 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
             }
         }
 
-        let refs = db.get_all_refs_for_exact(&artifact.chksum).await?;
+        let refs = db.get_all_refs_for(&artifact.chksum).await?;
 
         let mut refs = refs
             .into_iter()
