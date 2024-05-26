@@ -152,8 +152,12 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         return Err(Error::GitFetchError(status));
     }
 
-    db.insert_alias_from_to(&format!("git:{commit}"), &summary.inner_digests.sha256)
-        .await?;
+    db.insert_alias_from_to(
+        &format!("git:{commit}"),
+        &summary.inner_digests.sha256,
+        "git-archive",
+    )
+    .await?;
 
     Ok(())
 }

@@ -98,11 +98,11 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 ) -> Result<TarSummary> {
     // Setup decompressor
     let reader = io::BufReader::new(Hasher::new(reader));
-    let reader = match compression {
-        Some("gz") => Decompressor::gz(reader),
-        Some("xz") => Decompressor::xz(reader),
-        Some("bz2") => Decompressor::bz2(reader),
-        None => Decompressor::Plain(reader),
+    let (reader, outer_label) = match compression {
+        Some("gz") => (Decompressor::gz(reader), "gz(tar)"),
+        Some("xz") => (Decompressor::xz(reader), "xz(tar)"),
+        Some("bz2") => (Decompressor::bz2(reader), "bz2(tar)"),
+        None => (Decompressor::Plain(reader), "tar"),
         unknown => panic!("Unknown compression algorithm: {unknown:?}"),
     };
     let reader = Hasher::new(reader);
@@ -197,9 +197,9 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
     // Insert into database
     db.insert_artifact(&inner_digests.sha256, &files).await?;
-    db.register_chksums_aliases(&inner_digests, &inner_digests.sha256)
+    db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
         .await?;
-    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256)
+    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
         .await?;
 
     for sbom in &sbom_refs {

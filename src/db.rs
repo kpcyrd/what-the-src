@@ -62,14 +62,21 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn insert_alias_from_to(&self, alias_from: &str, alias_to: &str) -> Result<()> {
+    pub async fn insert_alias_from_to(
+        &self,
+        alias_from: &str,
+        alias_to: &str,
+        reason: &str,
+    ) -> Result<()> {
         let _result = sqlx::query(
-            "INSERT INTO aliases (alias_from, alias_to)
-            VALUES ($1, $2)
-            ON CONFLICT DO NOTHING",
+            "INSERT INTO aliases (alias_from, alias_to, reason)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (alias_from, alias_to) DO UPDATE SET
+            reason = COALESCE(EXCLUDED.reason, aliases.reason)",
         )
         .bind(alias_from)
         .bind(alias_to)
+        .bind(reason)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -79,14 +86,15 @@ impl Client {
         &self,
         chksums: &Checksums,
         canonical: &str,
+        label: &str,
     ) -> Result<()> {
         if chksums.sha256 != canonical {
-            self.insert_alias_from_to(&chksums.sha256, canonical)
+            self.insert_alias_from_to(&chksums.sha256, canonical, &format!("sha256({label})"))
                 .await?;
         }
-        self.insert_alias_from_to(&chksums.sha512, canonical)
+        self.insert_alias_from_to(&chksums.sha512, canonical, &format!("sha512({label})"))
             .await?;
-        self.insert_alias_from_to(&chksums.blake2b, canonical)
+        self.insert_alias_from_to(&chksums.blake2b, canonical, &format!("blake2b({label})"))
             .await?;
         Ok(())
     }
