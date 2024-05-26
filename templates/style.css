@@ -37,6 +37,11 @@ main h2 {
     overflow-x: scroll;
 }
 
+.tooltip {
+    text-decoration: underline dotted;
+    cursor: help;
+}
+
 footer {
     font-size: x-small;
     text-align: center;
