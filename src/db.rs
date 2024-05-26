@@ -191,6 +191,22 @@ impl Client {
         Ok(result)
     }
 
+    pub async fn bump_named_refs(&self, vendor: &str, package: &str, version: &str) -> Result<()> {
+        let _result = sqlx::query(
+            "UPDATE refs
+            SET last_seen = now()
+            WHERE vendor = $1
+            AND package = $2
+            AND version = $3",
+        )
+        .bind(vendor)
+        .bind(package)
+        .bind(version)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_all_refs_for(&self, chksum: &str) -> Result<Vec<RefView>> {
         let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *

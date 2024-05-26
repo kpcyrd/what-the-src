@@ -92,11 +92,16 @@ pub async fn run(args: &args::SyncAlpine) -> Result<()> {
             let version = pkg.version;
             let Some(commit) = pkg.commit else { continue };
 
+            // mark all refs known for this package as "last_seen now"
+            db.bump_named_refs(vendor, &origin, &version).await?;
+
+            // check if package already imported
             if db.get_package(vendor, &origin, &commit).await?.is_some() {
                 debug!("Package is already imported: vendor={vendor:?} origin={origin:?} commit={commit:?}");
                 continue;
             }
 
+            // queue for import
             info!("Inserting task: vendor={vendor:?} origin={origin:?} commit={commit:?}");
             db.insert_task(&db::Task::new(
                 format!("{vendor}-apkbuild:{origin}:{commit}"),

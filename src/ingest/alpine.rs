@@ -29,19 +29,23 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             continue;
         }
 
-        // TODO: check if already known
-        db.insert_task(&Task::new(
-            format!("fetch:{url}"),
-            &TaskData::FetchTar {
-                url: url.to_string(),
-                compression: None,
-                success_ref: None,
-            },
-        )?)
-        .await?;
+        let chksum = format!("sha512:{sha512}");
+
+        // check if already known
+        if db.resolve_artifact(&chksum).await?.is_none() {
+            db.insert_task(&Task::new(
+                format!("fetch:{url}"),
+                &TaskData::FetchTar {
+                    url: url.to_string(),
+                    compression: None,
+                    success_ref: None,
+                },
+            )?)
+            .await?;
+        }
 
         let r = db::Ref {
-            chksum: format!("sha512:{sha512}"),
+            chksum,
             vendor: vendor.to_string(),
             package: package.to_string(),
             version: version.to_string(),

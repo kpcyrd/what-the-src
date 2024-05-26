@@ -53,14 +53,19 @@ pub async fn run(args: &args::SyncVoid) -> Result<()> {
                 .strip_prefix('-')
                 .unwrap();
             let Some((srcpkg, commit)) = pkg.source_revisions.split_once(':') else {
-                todo!()
+                return Err(Error::InvalidData);
             };
 
+            // mark all refs known for this package as "last_seen now"
+            db.bump_named_refs(vendor, &pkgname, version).await?;
+
+            // check if package already imported
             if db.get_package(vendor, &pkgname, version).await?.is_some() {
                 debug!("Package is already imported: srcpkg={srcpkg:?} commit={commit:?} package={pkgname:?} version={version:?}");
                 continue;
             }
 
+            // queue for import
             info!("srcpkg={srcpkg:?} commit={commit:?} package={pkgname:?} version={version:?}");
             db.insert_task(&db::Task::new(
                 format!("void-linux-git:{srcpkg}:{commit}:{pkgname}:{version}"),

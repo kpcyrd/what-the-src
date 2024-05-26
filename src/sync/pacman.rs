@@ -54,11 +54,16 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
         };
         let Some(tag) = chunker.next() else { continue };
 
+        // mark all refs known for this package as "last_seen now"
+        db.bump_named_refs(vendor, pkgbase, version).await?;
+
+        // check if package already imported
         if db.get_package(vendor, pkgbase, version).await?.is_some() {
             debug!("Package is already imported: vendor={vendor:?} package={pkgbase:?} version={version:?}");
             continue;
         }
 
+        // queue for import
         info!("package={pkgbase:?} version={version:?} tag={tag:?}");
         db.insert_task(&db::Task::new(
             format!("pacman-git-snapshot:{pkgbase}:{tag}"),
