@@ -3254,6 +3254,7 @@ dependencies = [
  "digest",
  "dotenvy",
  "env_logger",
+ "fastrand",
  "fd-lock",
  "futures",
  "handlebars",

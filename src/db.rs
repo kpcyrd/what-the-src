@@ -3,6 +3,7 @@ use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::ingest;
 use crate::sbom;
+use futures::Stream;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
@@ -208,18 +209,36 @@ impl Client {
         Ok(rows)
     }
 
-    pub async fn get_all_refs(&self) -> Result<Vec<Ref>> {
-        let mut result = sqlx::query_as(
+    pub async fn get_all_refs_for_exact(&self, chksum: &str) -> Result<Vec<RefView>> {
+        let mut result = sqlx::query_as::<_, Ref>(
             "SELECT *
-            FROM refs",
+            FROM refs
+            WHERE chksum = $1",
         )
+        .bind(chksum)
         .fetch(&self.pool);
 
         let mut rows = Vec::new();
         while let Some(row) = result.try_next().await? {
-            rows.push(row);
+            rows.push(row.into());
         }
         Ok(rows)
+    }
+
+    pub fn get_all_artifacts_by_age(&self) -> impl Stream<Item = Result<Artifact>> {
+        let pool = self.pool.clone();
+        async_stream::stream! {
+            let mut result = sqlx::query_as::<_, Artifact>(
+                "SELECT *
+                FROM artifacts
+                ORDER BY last_imported ASC",
+            )
+            .fetch(&pool);
+
+            while let Some(row) = result.try_next().await? {
+                yield Ok(row);
+            }
+        }
     }
 
     pub async fn insert_task(&self, task: &Task) -> Result<()> {
