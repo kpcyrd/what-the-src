@@ -78,7 +78,7 @@ impl Worker {
                 };
 
                 // If there's an "on success" hook, insert it
-                let summary = ingest::tar::stream_data(&self.db, reader, compression).await?;
+                let summary = ingest::tar::stream_data(Some(&self.db), reader, compression).await?;
                 if let Some(pkg) = success_ref {
                     let r = db::Ref {
                         chksum: summary.outer_digests.sha256,

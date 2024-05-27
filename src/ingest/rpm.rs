@@ -51,7 +51,7 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
             continue;
         };
 
-        let summary = ingest::tar::stream_data(db, entry, compression).await?;
+        let summary = ingest::tar::stream_data(Some(db), entry, compression).await?;
 
         let r = db::Ref {
             chksum: summary.outer_digests.sha256.clone(),

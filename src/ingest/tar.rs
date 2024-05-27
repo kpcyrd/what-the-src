@@ -12,7 +12,7 @@ use tokio::fs::File;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -21,7 +21,7 @@ pub struct Entry {
     pub metadata: Metadata,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Metadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
@@ -77,13 +77,14 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinksTo {
     Hard(String),
     Symbolic(String),
 }
 
+#[derive(Debug, PartialEq)]
 pub struct TarSummary {
     pub inner_digests: Checksums,
     pub outer_digests: Checksums,
@@ -92,7 +93,7 @@ pub struct TarSummary {
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
-    db: &db::Client,
+    db: Option<&db::Client>,
     reader: R,
     compression: Option<&str>,
 ) -> Result<TarSummary> {
@@ -145,23 +146,25 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
                 if let Some(sbom) = sbom {
                     if let Ok(data) = String::from_utf8(data) {
-                        let sbom = sbom::Sbom::new(sbom, data)?;
-                        let chksum = db.insert_sbom(&sbom).await?;
-                        let strain = sbom.strain();
-                        info!("Inserted sbom {strain:?}: {digest:?}");
-                        sbom_refs.push(sbom::Ref {
-                            strain,
-                            chksum: chksum.clone(),
-                            path: path.clone(),
-                        });
-                        db.insert_task(&db::Task::new(
-                            format!("sbom:{strain}:{chksum}"),
-                            &db::TaskData::IndexSbom {
-                                strain: Some(strain.to_string()),
-                                chksum,
-                            },
-                        )?)
-                        .await?;
+                        if let Some(db) = db {
+                            let sbom = sbom::Sbom::new(sbom, data)?;
+                            let chksum = db.insert_sbom(&sbom).await?;
+                            let strain = sbom.strain();
+                            info!("Inserted sbom {strain:?}: {digest:?}");
+                            sbom_refs.push(sbom::Ref {
+                                strain,
+                                chksum: chksum.clone(),
+                                path: path.clone(),
+                            });
+                            db.insert_task(&db::Task::new(
+                                format!("sbom:{strain}:{chksum}"),
+                                &db::TaskData::IndexSbom {
+                                    strain: Some(strain.to_string()),
+                                    chksum,
+                                },
+                            )?)
+                            .await?;
+                        }
                     }
                 }
 
@@ -195,16 +198,18 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let (_stream, outer_digests) = reader.digests();
     info!("Found digests for outer compressed tar: {outer_digests:?}");
 
-    // Insert into database
-    db.insert_artifact(&inner_digests.sha256, &files).await?;
-    db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
-        .await?;
-    db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
-        .await?;
-
-    for sbom in &sbom_refs {
-        db.insert_sbom_ref(&inner_digests.sha256, sbom.strain, &sbom.chksum, &sbom.path)
+    if let Some(db) = db {
+        // Insert into database
+        db.insert_artifact(&inner_digests.sha256, &files).await?;
+        db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
             .await?;
+        db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
+            .await?;
+
+        for sbom in &sbom_refs {
+            db.insert_sbom_ref(&inner_digests.sha256, sbom.strain, &sbom.chksum, &sbom.path)
+                .await?;
+        }
     }
 
     Ok(TarSummary {
@@ -224,7 +229,7 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
         Box::new(io::stdin())
     };
 
-    stream_data(&db, input, args.compression.as_deref()).await?;
+    stream_data(Some(&db), input, args.compression.as_deref()).await?;
 
     Ok(())
 }
@@ -289,5 +294,96 @@ mod tests {
   "groupname": "user"
 }"#
         );
+    }
+
+    #[tokio::test]
+    async fn test_ingest_tar() {
+        let data = [
+            0x1f, 0x8b, 0x8, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x3, 0xed, 0xd5, 0xed, 0xa, 0x82, 0x30,
+            0x14, 0x6, 0xe0, 0xfd, 0xee, 0x2a, 0x76, 0x3, 0xd9, 0xbe, 0x77, 0x23, 0xfd, 0xf, 0x21,
+            0xcd, 0x91, 0x29, 0xa8, 0xfd, 0xe8, 0xee, 0x9b, 0xd4, 0x20, 0xfa, 0x10, 0x2, 0xa7,
+            0x94, 0xef, 0x83, 0x30, 0x50, 0xc1, 0xc3, 0xde, 0x9d, 0x63, 0x5e, 0xd7, 0x6b, 0x9e,
+            0xb0, 0xd, 0x89, 0x88, 0x79, 0x56, 0xeb, 0x7e, 0xe5, 0x56, 0xb3, 0xc7, 0x35, 0x20,
+            0x5c, 0x19, 0xee, 0x6f, 0x5a, 0x61, 0x2c, 0x61, 0x9c, 0x19, 0x2b, 0x9, 0xd5, 0x31,
+            0x8b, 0xa, 0xce, 0x6d, 0x97, 0x36, 0x94, 0xfa, 0x35, 0x6b, 0x86, 0xdf, 0x1b, 0x7e,
+            0xfe, 0xa3, 0xf2, 0x7b, 0xfe, 0x75, 0xe3, 0xe, 0xae, 0x4a, 0xcb, 0x5d, 0xee, 0xca,
+            0x6c, 0xe4, 0x6f, 0xf4, 0x1, 0x1b, 0xa5, 0x3e, 0xe7, 0x2f, 0xe5, 0x53, 0xfe, 0x52,
+            0x71, 0x4d, 0x28, 0x1b, 0xb9, 0x8e, 0xb7, 0x16, 0x9e, 0xff, 0xb6, 0x70, 0x2d, 0xf5,
+            0x57, 0x57, 0x64, 0x34, 0x9c, 0x1, 0xda, 0x9f, 0x81, 0x64, 0x35, 0x77, 0x69, 0x30,
+            0x81, 0xd0, 0xff, 0x45, 0xda, 0xec, 0x4b, 0x57, 0x1d, 0x67, 0xe9, 0xff, 0x97, 0xf9,
+            0x6f, 0x5, 0xf3, 0xf3, 0x9f, 0x4f, 0x31, 0x9c, 0x16, 0xde, 0xff, 0x61, 0x8b, 0xdb,
+            0xcb, 0x29, 0x56, 0xfc, 0xb7, 0xff, 0xbf, 0xb5, 0x5f, 0xe4, 0x6f, 0x98, 0x30, 0x84,
+            0x8a, 0x98, 0xb9, 0x7, 0xb, 0xcf, 0x1f, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+            0x0, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xc3, 0x15, 0xdc, 0x23, 0xbf, 0x4f, 0x0, 0x28, 0x0, 0x0,
+        ];
+
+        let summary = stream_data(None, &data[..], Some("gz")).await.unwrap();
+        assert_eq!(summary, TarSummary {
+            inner_digests: Checksums {
+                sha256: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+                sha512: "sha512:d2d14d47a23f20ef522b76765b9feb80d6d66f06b97d8ba8cbabebdee483880d31cf0522eb318613d94a808cde4e8ef8860733f8bde41dd7c4fca3b82cd354eb".to_string(),
+                blake2b: "blake2b:601ba064ff937c07e0695408111694230af5eeef97bd3d783d619d88dcb4a434cebb38d2eb6fc7a3b9b36e9e76676c18ba237c3eea922fe7cf41d61bcf86f65a".to_string(),
+            },
+            outer_digests: Checksums {
+                sha256: "sha256:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4".to_string(),
+                sha512: "sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370".to_string(),
+                blake2b: "blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533".to_string(),
+            },
+            files: vec![
+                Entry {
+                    path: "foo-1.0/".to_string(),
+                    digest: None,
+                    metadata: Metadata {
+                        mode: Some("0o755".to_string()),
+                        links_to: None,
+                        mtime: Some(1713888951),
+                        uid: Some(1000),
+                        username: Some("user".to_string()),
+                        gid: Some(1000),
+                        groupname: Some("user".to_string()),
+                    }
+                },
+                Entry {
+                    path: "foo-1.0/original_file".to_string(),
+                    digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
+                    metadata: Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: None,
+                        mtime: Some(1713888951),
+                        uid: Some(1000),
+                        username: Some("user".to_string()),
+                        gid: Some(1000),
+                        groupname: Some("user".to_string()),
+                    }
+                },
+                Entry {
+                    path: "foo-1.0/hardlink_file".to_string(),
+                    digest: None,
+                    metadata: Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
+                        mtime: Some(1713888951),
+                        uid: Some(1000),
+                        username: Some("user".to_string()),
+                        gid: Some(1000),
+                        groupname: Some("user".to_string()),
+                    }
+                },
+                Entry {
+                    path: "foo-1.0/symlink_file".to_string(),
+                    digest: None,
+                    metadata: Metadata {
+                        mode: Some("0o777".to_string()),
+                        links_to: Some(LinksTo::Symbolic("original_file".to_string())),
+                        mtime: Some(1713888951),
+                        uid: Some(1000),
+                        username: Some("user".to_string()),
+                        gid: Some(1000),
+                        groupname: Some("user".to_string()),
+                    }
+                },
+            ],
+            sbom_refs: vec![],
+        });
     }
 }

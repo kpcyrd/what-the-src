@@ -145,7 +145,7 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let summary = ingest::tar::stream_data(db, stdout, None).await?;
+    let summary = ingest::tar::stream_data(Some(db), stdout, None).await?;
 
     let status = child.wait().await?;
     if !status.success() {

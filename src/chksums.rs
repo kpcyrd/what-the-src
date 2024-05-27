@@ -56,7 +56,7 @@ impl<R> Hasher<R> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Checksums {
     pub sha256: String,
     pub sha512: String,
