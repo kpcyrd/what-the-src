@@ -3,6 +3,7 @@ use crate::db;
 use crate::errors::*;
 use crate::ingest;
 use crate::sbom;
+use data_encoding::BASE64;
 use diffy_fork_filenames as diffy;
 use log::error;
 use num_format::{Locale, ToFormattedString};
@@ -10,6 +11,7 @@ use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::fmt;
@@ -277,6 +279,33 @@ async fn sbom(
     }
 }
 
+fn detect_hash_search(txt: &str) -> Option<Cow<'_, str>> {
+    if let Some(value) = txt.strip_prefix("sha256") {
+        if let Some(value) = value.strip_prefix(':') {
+            // search is in format sha256:<hex>
+            (value.len() == 64).then_some(Cow::Borrowed(txt))
+        } else if let Some(value) = value.strip_prefix('-') {
+            // search is in format sha256-<base64> (NixOS)
+            if let Ok(digest) = BASE64.decode(value.as_bytes()) {
+                let digest = hex::encode(digest);
+                Some(Cow::Owned(format!("sha256:{digest}")))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else if let Some(value) = txt.strip_prefix("sha512:") {
+        // search is in format sha512:<hex>
+        (value.len() == 128).then_some(Cow::Borrowed(txt))
+    } else if let Some(value) = txt.strip_prefix("blake2b:") {
+        // search is in format blake2b:<hex>
+        (value.len() == 128).then_some(Cow::Borrowed(txt))
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct SearchQuery {
     q: String,
@@ -294,6 +323,13 @@ async fn search(
         })
         .map_err(Error::from)?;
         let uri = format!("/search?{query}")
+            .parse::<Uri>()
+            .map_err(Error::from)?;
+        return Ok(Box::new(warp::redirect::found(uri)));
+    }
+
+    if let Some(artifact) = detect_hash_search(trimmed) {
+        let uri = format!("/artifact/{artifact}")
             .parse::<Uri>()
             .map_err(Error::from)?;
         return Ok(Box::new(warp::redirect::found(uri)));
@@ -854,6 +890,70 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
                 trim_left: false,
                 trim_right: true,
             }
+        );
+    }
+
+    #[test]
+    fn test_hash_search_detection() {
+        let search = detect_hash_search("ripgrep");
+        assert_eq!(search, None);
+
+        // test sha256
+        let search = detect_hash_search(
+            "sha256:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4",
+        );
+        assert_eq!(
+            search.as_deref(),
+            Some("sha256:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4")
+        );
+
+        // test sha512
+        let search = detect_hash_search(
+            "sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370",
+        );
+        assert_eq!(
+            search.as_deref(),
+            Some("sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370"),
+        );
+
+        // test blake2b
+        let search = detect_hash_search(
+            "blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533",
+        );
+        assert_eq!(
+            search.as_deref(),
+            Some("blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533"),
+        );
+    }
+
+    #[test]
+    fn test_hash_search_detection_invalid() {
+        // test sha256
+        let search = detect_hash_search(
+            "sha256:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370",
+        );
+        assert_eq!(search, None);
+
+        // test sha512
+        let search = detect_hash_search(
+            "sha512:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4",
+        );
+        assert_eq!(search, None);
+
+        // test blake2b
+        let search = detect_hash_search(
+            "blake2b:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4",
+        );
+        assert_eq!(search, None);
+    }
+
+    #[test]
+    fn test_hash_search_detection_nix() {
+        // https://ftp.gnu.org/gnu/which/which-2.21.tar.gz
+        let search = detect_hash_search("sha256-9KJFuUEks3fYtJZGv0IfkVXTaqdhS26/g3BdP/x26q0=");
+        assert_eq!(
+            search.as_deref(),
+            Some("sha256:f4a245b94124b377d8b49646bf421f9155d36aa7614b6ebf83705d3ffc76eaad")
         );
     }
 }
