@@ -64,6 +64,13 @@ Instead, configure scripts should be generated on the build server during build 
 </div>
 {{/if}}
 
+<h2>Diff</h2>
+<form class="diff-form" action="/diff">
+    <input type="hidden" name="diff_from" value="{{chksum}}">
+    <input name="diff_to" placeholder="sha256:..." autofocus>
+    <input type="submit" value="Generate">
+</form>
+
 {{#if files}}
 <h2>Content</h2>
 <pre id="files" class="x-overflow">

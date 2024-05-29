@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use tokio::task::JoinSet;
+use url_escape::percent_encoding::AsciiSet;
 use warp::http::Uri;
 use warp::reject;
 use warp::{
@@ -295,6 +296,8 @@ fn detect_hash_search(txt: &str) -> Option<Cow<'_, str>> {
         } else {
             None
         }
+    } else if let Some(_value) = txt.strip_prefix("git:") {
+        Some(Cow::Borrowed(txt))
     } else if let Some(value) = txt.strip_prefix("sha512:") {
         // search is in format sha512:<hex>
         (value.len() == 128).then_some(Cow::Borrowed(txt))
@@ -329,7 +332,7 @@ async fn search(
     }
 
     if let Some(artifact) = detect_hash_search(trimmed) {
-        let uri = format!("/artifact/{artifact}")
+        let uri = format!("/artifact/{}", url_encode_artifact(&artifact))
             .parse::<Uri>()
             .map_err(Error::from)?;
         return Ok(Box::new(warp::redirect::found(uri)));
@@ -484,6 +487,31 @@ impl fmt::Display for Diff {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DiffRedirectQuery {
+    diff_from: String,
+    diff_to: String,
+}
+
+pub const ARTIFACT_SET: AsciiSet = url_escape::COMPONENT.remove(b':');
+
+#[inline]
+fn url_encode_artifact(txt: &str) -> Cow<'_, str> {
+    url_escape::encode(txt, &ARTIFACT_SET)
+}
+
+async fn diff_redirect(
+    query: DiffRedirectQuery,
+) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    let uri = format!(
+        "/diff/{}/{}",
+        url_encode_artifact(&query.diff_from),
+        url_encode_artifact(&query.diff_to)
+    );
+    let uri = uri.parse::<Uri>().map_err(Error::from)?;
+    Ok(Box::new(warp::redirect::found(uri)))
+}
+
 async fn diff(
     hbs: Arc<Handlebars<'_>>,
     db: Arc<db::Client>,
@@ -590,6 +618,12 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::query::<StatsQuery>())
         .and_then(stats)
         .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
+    let diff_redirect = warp::get()
+        .and(warp::path("diff"))
+        .and(warp::path::end())
+        .and(warp::query::<DiffRedirectQuery>())
+        .and_then(diff_redirect)
+        .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
     let diff = warp::get()
         .and(hbs.clone())
         .and(db.clone())
@@ -613,6 +647,7 @@ pub async fn run(args: &args::Web) -> Result<()> {
                 .or(sbom)
                 .or(search)
                 .or(stats)
+                .or(diff_redirect)
                 .or(diff)
                 .or(style),
         )
@@ -924,6 +959,13 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
             search.as_deref(),
             Some("blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533"),
         );
+
+        // test git
+        let search = detect_hash_search("git:7747534db4576db43eced4356859ef400351ca28");
+        assert_eq!(
+            search.as_deref(),
+            Some("git:7747534db4576db43eced4356859ef400351ca28")
+        );
     }
 
     #[test]
@@ -955,5 +997,11 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
             search.as_deref(),
             Some("sha256:f4a245b94124b377d8b49646bf421f9155d36aa7614b6ebf83705d3ffc76eaad")
         );
+    }
+
+    #[test]
+    fn test_url_encode_artifact() {
+        let encoded = url_encode_artifact("sha256:abc/$<>&#xyz");
+        assert_eq!(encoded, "sha256:abc%2F%24%3C%3E%26%23xyz");
     }
 }

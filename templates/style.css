@@ -48,6 +48,10 @@ footer {
     margin-top: 25px;
 }
 
+.diff-form {
+    text-align: center;
+}
+
 .diff-add {
     color: #168a16;
     font-weight: bold;
