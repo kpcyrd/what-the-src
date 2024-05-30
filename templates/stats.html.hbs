@@ -36,6 +36,24 @@ Stats - What the src?!
 </pre>
 {{/if}}
 
+{{#if aliases_with_reason}}
+<h2>Aliases with documented reason</h2>
+<pre>
+{{#each aliases_with_reason}}
+{{pad_right this.0 21}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+{{/if}}
+
+{{#if compressed_artifacts}}
+<h2>Compressed artifact metadata</h2>
+<pre>
+{{#each compressed_artifacts}}
+{{pad_right this.0 21}} {{format_num this.1 14}}
+{{/each}}
+</pre>
+{{/if}}
+
 <p>Return to <a href="/">home page</a>.</p>
 {{/inline}}
 {{> base.html.hbs }}

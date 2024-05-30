@@ -389,7 +389,20 @@ async fn stats(
         let db = db.clone();
         set.spawn(async move { ("vendor_refs", db.stats_vendor_refs().await) });
     }
-    set.spawn(async move { ("pending_tasks", db.stats_pending_tasks().await) });
+    {
+        let db = db.clone();
+        set.spawn(async move { ("pending_tasks", db.stats_pending_tasks().await) });
+    }
+    {
+        let db = db.clone();
+        set.spawn(async move { ("aliases_with_reason", db.stats_aliases_with_reason().await) });
+    }
+    set.spawn(async move {
+        (
+            "compressed_artifacts",
+            db.stats_compressed_artifacts().await,
+        )
+    });
 
     let mut data = HashMap::new();
     while let Some(row) = set.join_next().await {

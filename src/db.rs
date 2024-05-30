@@ -552,6 +552,22 @@ impl Client {
         )
         .await
     }
+
+    pub async fn stats_aliases_with_reason(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "select '%', floor(100.0*(select count(*) from aliases where reason is not null)/(select count(*) from aliases))::bigint as percent",
+            None,
+        )
+        .await
+    }
+
+    pub async fn stats_compressed_artifacts(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "select '%', floor(100.0*(select count(*) from artifacts where files_compressed is not null)/(select count(*) from artifacts))::bigint as percent",
+            None,
+        )
+        .await
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
