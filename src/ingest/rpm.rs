@@ -51,7 +51,9 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
             continue;
         };
 
-        let summary = ingest::tar::stream_data(Some(db), entry, compression).await?;
+        // in case of chromium, calculate the checksum but do not import
+        let tar_db = (!filename.starts_with("chromium-")).then_some(db);
+        let summary = ingest::tar::stream_data(tar_db, entry, compression).await?;
 
         let r = db::Ref {
             chksum: summary.outer_digests.sha256.clone(),
