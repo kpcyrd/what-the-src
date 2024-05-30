@@ -92,6 +92,15 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         return Err(Error::GitError(status));
     }
 
+    // https://gitlab.archlinux.org/pacman/pacman/-/commit/0828a085c146601f21d5e4afb5f396f00de2963b
+    debug!("Setting up .git/info/attributes to disable .gitattributes");
+    fs::write(
+        format!("{path}/.git/info/attributes"),
+        b"* -export-subst -export-ignore\n",
+    )
+    .await?;
+
+    debug!("Adding git remote: {:?}", git.url);
     let status = process::Command::new("git")
         .args(["-C", &path, "remote", "add", "origin", &git.url])
         .status()
