@@ -73,8 +73,8 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                         let package = pkg.package.to_string();
                         let version = pkg.version.clone().unwrap();
                         info!(
-                        "digest={chksum:?} package={package:?} version={version:?} name={name:?}"
-                    );
+                            "digest={chksum:?} package={package:?} version={version:?} name={name:?}"
+                        );
                         let obj = db::Ref {
                             chksum,
                             vendor: args.vendor.to_string(),
@@ -83,6 +83,10 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                             filename: Some(name.clone()),
                         };
                         db.insert_ref(&obj).await?;
+
+                        if name.starts_with("chromium_") {
+                            continue;
+                        }
 
                         if db.resolve_artifact(&obj.chksum).await?.is_none() {
                             let directory = pkg.directory.as_ref().unwrap();
