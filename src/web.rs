@@ -296,14 +296,19 @@ fn detect_hash_search(txt: &str) -> Option<Cow<'_, str>> {
         } else {
             None
         }
-    } else if let Some(_value) = txt.strip_prefix("git:") {
-        Some(Cow::Borrowed(txt))
     } else if let Some(value) = txt.strip_prefix("sha512:") {
         // search is in format sha512:<hex>
         (value.len() == 128).then_some(Cow::Borrowed(txt))
     } else if let Some(value) = txt.strip_prefix("blake2b:") {
         // search is in format blake2b:<hex>
         (value.len() == 128).then_some(Cow::Borrowed(txt))
+    } else if let Some(_value) = txt.strip_prefix("git:") {
+        Some(Cow::Borrowed(txt))
+    } else if let Ok(url) = txt.parse::<Uri>() {
+        let path = url.path();
+        path.strip_prefix("/artifact/")
+            .filter(|x| !x.contains('/'))
+            .map(|x| Cow::Owned(x.into()))
     } else {
         None
     }
@@ -996,6 +1001,15 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
         assert_eq!(
             search.as_deref(),
             Some("sha256:f4a245b94124b377d8b49646bf421f9155d36aa7614b6ebf83705d3ffc76eaad")
+        );
+    }
+
+    #[test]
+    fn test_hash_search_detection_link() {
+        let search = detect_hash_search("https://whatsrc.org/artifact/sha256:981a75f8291020d9f6632c6160ee3651f376bdf354373bea00506a220e355134");
+        assert_eq!(
+            search.as_deref(),
+            Some("sha256:981a75f8291020d9f6632c6160ee3651f376bdf354373bea00506a220e355134")
         );
     }
 
