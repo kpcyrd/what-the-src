@@ -88,7 +88,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                             continue;
                         }
 
-                        if db.resolve_artifact(&obj.chksum).await?.is_none() {
+                        if args.reindex || db.resolve_artifact(&obj.chksum).await?.is_none() {
                             let directory = pkg.directory.as_ref().unwrap();
                             let url = format!("{base_url}/{directory}/{name}");
                             info!("url={url:?}");

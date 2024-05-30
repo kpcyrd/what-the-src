@@ -171,6 +171,9 @@ pub struct SyncApt {
     /// The suite name to import, e.g. `main`, `contrib` or `non-free`
     #[arg(long = "suite", default_value = "main")]
     pub suites: Vec<String>,
+    /// Queue a task even if artifact is already known
+    #[arg(short = 'R', long)]
+    pub reindex: bool,
     pub url: String,
 }
 
