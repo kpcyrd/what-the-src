@@ -500,7 +500,6 @@ struct DiffRedirectQuery {
 
 pub const ARTIFACT_SET: AsciiSet = url_escape::COMPONENT.remove(b':');
 
-#[inline]
 fn url_encode_artifact(txt: &str) -> Cow<'_, str> {
     url_escape::encode(txt, &ARTIFACT_SET)
 }
@@ -508,10 +507,14 @@ fn url_encode_artifact(txt: &str) -> Cow<'_, str> {
 async fn diff_redirect(
     query: DiffRedirectQuery,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
+    // diff_from comes from type=hidden so we expect a well-formatted identifier
+    // diff_to comes from type=text so we try to do a fuzzy match to be user friendly
+    let diff_to = detect_hash_search(&query.diff_to).unwrap_or(Cow::Borrowed(&query.diff_to));
+
     let uri = format!(
         "/diff/{}/{}",
         url_encode_artifact(&query.diff_from),
-        url_encode_artifact(&query.diff_to)
+        url_encode_artifact(&diff_to)
     );
     let uri = uri.parse::<Uri>().map_err(Error::from)?;
     Ok(Box::new(warp::redirect::found(uri)))
