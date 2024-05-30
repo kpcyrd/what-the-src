@@ -5,15 +5,29 @@ use crate::ingest;
 use crate::sbom;
 use futures::Stream;
 use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sqlx::postgres::{PgPoolOptions, Postgres};
 use sqlx::types::chrono::{DateTime, Utc};
 use sqlx::Pool;
 use sqlx::Row;
 use std::borrow::Cow;
 use std::env;
+use std::io::{Read, Write};
 
 const RETRY_LIMIT: i64 = 5;
+
+fn compress_json<W: Write, T: Serialize + ?Sized>(writer: W, obj: &T) -> Result<()> {
+    let mut writer = lz4_flex::frame::FrameEncoder::new(writer);
+    serde_json::to_writer(&mut writer, obj)?;
+    writer.finish()?;
+    Ok(())
+}
+
+fn decompress_json<R: Read, T: DeserializeOwned>(reader: R) -> Result<T> {
+    let reader = lz4_flex::frame::FrameDecoder::new(reader);
+    let obj = serde_json::from_reader(reader)?;
+    Ok(obj)
+}
 
 #[derive(Debug)]
 pub struct Client {
@@ -38,17 +52,20 @@ impl Client {
     }
 
     pub async fn insert_artifact(&self, chksum: &str, files: &[ingest::tar::Entry]) -> Result<()> {
-        let files = serde_json::to_value(files)?;
+        let mut buf = Vec::new();
+        compress_json(&mut buf, files)?;
+
         let _result = sqlx::query(
-            "INSERT INTO artifacts (chksum, last_imported, files)
+            "INSERT INTO artifacts (chksum, last_imported, files_compressed)
             VALUES ($1, now(), $2)
             ON CONFLICT (chksum) DO UPDATE SET
             last_imported = EXCLUDED.last_imported,
-            files = EXCLUDED.files
+            files = null,
+            files_compressed = EXCLUDED.files_compressed
             ",
         )
         .bind(chksum)
-        .bind(files)
+        .bind(&buf)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -544,7 +561,24 @@ pub struct Artifact {
     pub first_seen: DateTime<Utc>,
     #[serde(skip)]
     pub last_imported: DateTime<Utc>,
+    #[serde(skip)]
     pub files: Option<serde_json::Value>,
+    #[serde(skip)]
+    pub files_compressed: Option<Vec<u8>>,
+}
+
+impl Artifact {
+    pub fn get_files(&self) -> Result<Option<Vec<ingest::tar::Entry>>> {
+        if let Some(files) = &self.files {
+            let files = serde_json::from_value(files.clone())?;
+            Ok(Some(files))
+        } else if let Some(compressed) = &self.files_compressed {
+            let files = decompress_json(&compressed[..])?;
+            Ok(Some(files))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -751,4 +785,33 @@ pub struct Package {
     pub vendor: String,
     pub package: String,
     pub version: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_compression() {
+        let obj = maplit::btreemap! {
+            "hello".to_string() => "world".to_string(),
+            "more1".to_string() => "hello hello this hopefully compresses well".to_string(),
+            "more2".to_string() => "hello hello this hopefully compresses well".to_string(),
+            "more3".to_string() => "hello hello this hopefully compresses well".to_string(),
+        };
+
+        // test compression and verify with expected size
+        let mut buf = Vec::new();
+        compress_json(&mut buf, &obj).unwrap();
+        assert_eq!(buf.len(), 100);
+
+        // document the uncompressed size for easier compare
+        let uncompressed = serde_json::to_string(&obj).unwrap();
+        assert_eq!(uncompressed.len(), 176);
+
+        // test decompression
+        let decompressed = decompress_json::<_, BTreeMap<String, String>>(&buf[..]).unwrap();
+        assert_eq!(obj, decompressed);
+    }
 }

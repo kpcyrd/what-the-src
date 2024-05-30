@@ -25,6 +25,8 @@ pub enum Error {
     #[error(transparent)]
     Utf8(#[from] std::str::Utf8Error),
     #[error(transparent)]
+    Lz4(#[from] lz4_flex::frame::Error),
+    #[error(transparent)]
     AptError(#[from] apt_parser::errors::APTError),
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),

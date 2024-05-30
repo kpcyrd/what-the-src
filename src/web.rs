@@ -122,8 +122,13 @@ impl<'a> Handlebars<'a> {
         Ok(out)
     }
 
-    fn render_archive(&self, artifact: &db::Artifact) -> Result<String> {
-        let artifact = self.hbs.render("archive.txt.hbs", artifact)?;
+    fn render_archive(&self, files: Option<&[ingest::tar::Entry]>) -> Result<String> {
+        let artifact = self.hbs.render(
+            "archive.txt.hbs",
+            &json!({
+                "files": files,
+            }),
+        )?;
         Ok(artifact)
     }
 }
@@ -137,16 +142,15 @@ async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>,
     Ok(Box::new(warp::reply::html(html)))
 }
 
-fn detect_autotools(artifact: &db::Artifact) -> Result<bool> {
-    let Some(files) = &artifact.files else {
+fn detect_autotools(files: Option<&[ingest::tar::Entry]>) -> Result<bool> {
+    let Some(files) = files else {
         return Ok(false);
     };
-    let files = serde_json::from_value::<Vec<ingest::tar::Entry>>(files.clone())?;
 
     let mut configure = HashSet::new();
     let mut configure_ac = HashSet::new();
 
-    for file in &files {
+    for file in files {
         if let Some(folder) = file.path.strip_suffix("/configure") {
             if configure_ac.contains(folder) {
                 return Ok(true);
@@ -184,18 +188,19 @@ async fn artifact(
         return Err(reject::not_found());
     };
 
+    let files = artifact.get_files()?;
     let sbom_refs = db.get_sbom_refs_for_archive(resolved_chksum).await?;
 
     if json {
         Ok(Box::new(warp::reply::json(&json!({
-            "files": artifact.files,
+            "files": files,
             "sbom_refs": sbom_refs,
         }))))
     } else {
-        let refs = db.get_all_refs_for(&artifact.chksum).await?;
-        let files = hbs.render_archive(&artifact)?;
+        let suspecting_autotools = detect_autotools(files.as_deref())?;
 
-        let suspecting_autotools = detect_autotools(&artifact)?;
+        let refs = db.get_all_refs_for(&artifact.chksum).await?;
+        let files = hbs.render_archive(files.as_deref())?;
 
         let mut build_inputs = Vec::new();
         let mut found_at = Vec::new();
@@ -406,12 +411,13 @@ async fn stats(
 }
 
 fn process_files_list(
-    value: Option<serde_json::Value>,
+    list: Option<Vec<ingest::tar::Entry>>,
     sorted: bool,
     trimmed: bool,
-) -> Result<Option<serde_json::Value>> {
-    let Some(value) = value else { return Ok(None) };
-    let mut list = serde_json::from_value::<Vec<ingest::tar::Entry>>(value)?;
+) -> Result<Option<Vec<ingest::tar::Entry>>> {
+    let Some(mut list) = list else {
+        return Ok(None);
+    };
     if trimmed {
         list = list
             .into_iter()
@@ -429,8 +435,7 @@ fn process_files_list(
     if sorted {
         list.sort_by(|a, b| a.path.partial_cmp(&b.path).unwrap());
     }
-    let value = serde_json::to_value(&list)?;
-    Ok(Some(value))
+    Ok(Some(list))
 }
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -527,21 +532,24 @@ async fn diff(
     diff_from: String,
     diff_to: String,
 ) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let Some(mut artifact1) = db.resolve_artifact(&diff_from).await? else {
+    let Some(artifact1) = db.resolve_artifact(&diff_from).await? else {
         return Err(reject::not_found());
     };
 
-    let Some(mut artifact2) = db.resolve_artifact(&diff_to).await? else {
+    let Some(artifact2) = db.resolve_artifact(&diff_to).await? else {
         return Err(reject::not_found());
     };
+
+    let mut artifact_files1 = artifact1.get_files()?;
+    let mut artifact_files2 = artifact2.get_files()?;
 
     if options != Diff::default() {
-        artifact1.files = process_files_list(artifact1.files, options.sorted, options.trim_left)?;
-        artifact2.files = process_files_list(artifact2.files, options.sorted, options.trim_right)?;
+        artifact_files1 = process_files_list(artifact_files1, options.sorted, options.trim_left)?;
+        artifact_files2 = process_files_list(artifact_files2, options.sorted, options.trim_right)?;
     }
 
-    let artifact1 = hbs.render_archive(&artifact1)?;
-    let artifact2 = hbs.render_archive(&artifact2)?;
+    let artifact1 = hbs.render_archive(artifact_files1.as_deref())?;
+    let artifact2 = hbs.render_archive(artifact_files2.as_deref())?;
 
     let diff = diffy::create_file_patch(&artifact1, &artifact2, &diff_from, &diff_to);
     let diff = diff.to_string();
@@ -670,16 +678,12 @@ pub async fn run(args: &args::Web) -> Result<()> {
 mod tests {
     use super::*;
     use crate::ingest::tar::LinksTo;
-    use sqlx::types::chrono::Utc;
 
     #[test]
     fn test_render_archive() {
         let hbs = Handlebars::new().unwrap();
-        let out = hbs.render_archive(&db::Artifact {
-            chksum: "abcd".to_string(),
-            first_seen: Utc::now(),
-            last_imported: Utc::now(),
-            files: Some(serde_json::to_value([
+        let out = hbs
+            .render_archive(Some(&[
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/".to_string(),
                     digest: None,
@@ -691,11 +695,14 @@ mod tests {
                         username: None,
                         gid: Some(0),
                         groupname: None,
-                    }
+                    },
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/.gitignore".to_string(),
-                    digest: Some("sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984".to_string()),
+                    digest: Some(
+                        "sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984"
+                            .to_string(),
+                    ),
                     metadata: ingest::tar::Metadata {
                         mode: Some("0o664".to_string()),
                         links_to: None,
@@ -704,7 +711,7 @@ mod tests {
                         username: None,
                         gid: Some(0),
                         groupname: None,
-                    }
+                    },
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/".to_string(),
@@ -717,7 +724,7 @@ mod tests {
                         username: None,
                         gid: Some(0),
                         groupname: None,
-                    }
+                    },
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/img/".to_string(),
@@ -730,11 +737,14 @@ mod tests {
                         username: None,
                         gid: Some(0),
                         groupname: None,
-                    }
+                    },
                 },
                 ingest::tar::Entry {
                     path: "cmatrix-2.0/data/img/capture_bold_font.png".to_string(),
-                    digest: Some("sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58".to_string()),
+                    digest: Some(
+                        "sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58"
+                            .to_string(),
+                    ),
                     metadata: ingest::tar::Metadata {
                         mode: Some("0o664".to_string()),
                         links_to: None,
@@ -743,10 +753,10 @@ mod tests {
                         username: None,
                         gid: Some(0),
                         groupname: None,
-                    }
-                }
-            ]).unwrap()),
-        }).unwrap();
+                    },
+                },
+            ]))
+            .unwrap();
         assert_eq!(out, "                                                                         cmatrix-2.0/
 sha256:45705163f227f0b5c20dc79e3d3e41b4837cb968d1c3af60cc6301b577038984  cmatrix-2.0/.gitignore
                                                                          cmatrix-2.0/data/
@@ -759,55 +769,50 @@ sha256:ffa566a67628191d5450b7209d6f08c8867c12380d3ebc9e808dc4012e3aca58  cmatrix
     fn test_render_archive_symlink() {
         let hbs = Handlebars::new().unwrap();
         let out = hbs
-            .render_archive(&db::Artifact {
-                chksum: "abcd".to_string(),
-                first_seen: Utc::now(),
-                last_imported: Utc::now(),
-                files: Some(
-                    serde_json::to_value([
-                        ingest::tar::Entry {
-                            path: "foo-1.0/".to_string(),
-                            digest: None,
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o755".to_string()),
-                                links_to: None,
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                        ingest::tar::Entry {
-                            path: "foo-1.0/original_file".to_string(),
-                            digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o644".to_string()),
-                                links_to: None,
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                        ingest::tar::Entry {
-                            path: "foo-1.0/symlink_file".to_string(),
-                            digest: None,
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o777".to_string()),
-                                links_to: Some(LinksTo::Symbolic("original_file".to_string())),
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                    ])
-                    .unwrap(),
-                ),
-            })
+            .render_archive(Some(&[
+                ingest::tar::Entry {
+                    path: "foo-1.0/".to_string(),
+                    digest: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o755".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+                ingest::tar::Entry {
+                    path: "foo-1.0/original_file".to_string(),
+                    digest: Some(
+                        "sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e"
+                            .to_string(),
+                    ),
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+                ingest::tar::Entry {
+                    path: "foo-1.0/symlink_file".to_string(),
+                    digest: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o777".to_string()),
+                        links_to: Some(LinksTo::Symbolic("original_file".to_string())),
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+            ]))
             .unwrap();
         assert_eq!(
             out,
@@ -822,55 +827,50 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
     fn test_render_archive_hardlink() {
         let hbs = Handlebars::new().unwrap();
         let out = hbs
-            .render_archive(&db::Artifact {
-                chksum: "abcd".to_string(),
-                first_seen: Utc::now(),
-                last_imported: Utc::now(),
-                files: Some(
-                    serde_json::to_value([
-                        ingest::tar::Entry {
-                            path: "foo-1.0/".to_string(),
-                            digest: None,
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o644".to_string()),
-                                links_to: None,
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                        ingest::tar::Entry {
-                            path: "foo-1.0/original_file".to_string(),
-                            digest: Some("sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e".to_string()),
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o644".to_string()),
-                                links_to: None,
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                        ingest::tar::Entry {
-                            path: "foo-1.0/hardlink_file".to_string(),
-                            digest: None,
-                            metadata: ingest::tar::Metadata {
-                                mode: Some("0o644".to_string()),
-                                links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
-                                mtime: Some(1337),
-                                uid: Some(0),
-                                username: None,
-                                gid: Some(0),
-                                groupname: None,
-                            }
-                        },
-                    ])
-                    .unwrap(),
-                ),
-            })
+            .render_archive(Some(&[
+                ingest::tar::Entry {
+                    path: "foo-1.0/".to_string(),
+                    digest: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+                ingest::tar::Entry {
+                    path: "foo-1.0/original_file".to_string(),
+                    digest: Some(
+                        "sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e"
+                            .to_string(),
+                    ),
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: None,
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+                ingest::tar::Entry {
+                    path: "foo-1.0/hardlink_file".to_string(),
+                    digest: None,
+                    metadata: ingest::tar::Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: Some(LinksTo::Hard("foo-1.0/original_file".to_string())),
+                        mtime: Some(1337),
+                        uid: Some(0),
+                        username: None,
+                        gid: Some(0),
+                        groupname: None,
+                    },
+                },
+            ]))
             .unwrap();
         assert_eq!(
             out,
