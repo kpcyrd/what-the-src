@@ -67,3 +67,9 @@ what-the-src plumbing sync-apt --vendor ubuntu https://ftp.halifax.rwth-aachen.d
 ```
 what-the-src plumbing sync-void --vendor void --fetch https://repo-fastly.voidlinux.org/current/x86_64-repodata
 ```
+
+### Sync Yocto
+
+```
+what-the-src plumbing sync-yocto --vendor yocto --fetch https://git.openembedded.org/openembedded-core/snapshot/master.tar.gz
+```

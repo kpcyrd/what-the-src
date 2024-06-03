@@ -6,3 +6,4 @@ pub mod homebrew;
 pub mod pacman;
 pub mod rpm;
 pub mod void;
+pub mod yocto;
