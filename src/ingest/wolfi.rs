@@ -1,5 +1,5 @@
 use crate::args;
-use crate::db::{self, Task, TaskData};
+use crate::db;
 use crate::errors::*;
 use crate::utils;
 use regex::Regex;
@@ -150,33 +150,9 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         debug!("source={source:?}");
         let url = source.url;
 
-        let task = match url.split_once("://") {
-            Some(("https" | "http", _)) => {
-                if !utils::is_possible_tar_artifact(&url) {
-                    continue;
-                }
-
-                Task::new(
-                    format!("fetch:{url}"),
-                    &TaskData::FetchTar {
-                        url: url.to_string(),
-                        compression: None,
-                        success_ref: None,
-                    },
-                )?
-            }
-            Some(("git+https", _)) => {
-                debug!("Found git remote: {url:?}");
-                Task::new(
-                    format!("git-clone:{url}"),
-                    &TaskData::GitSnapshot {
-                        url: url.to_string(),
-                    },
-                )?
-            }
-            _ => continue,
+        let Some(task) = utils::task_for_url(&url) else {
+            continue;
         };
-
         db.insert_task(&task).await?;
 
         let r = db::Ref {

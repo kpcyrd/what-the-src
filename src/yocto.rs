@@ -1,23 +1,84 @@
 use crate::errors::*;
 use std::collections::BTreeMap;
+use std::mem;
 use std::str::Lines;
 
 const DEFAULTS: &[(&str, &str)] = &[
+    ("APACHE_MIRROR", "https://archive.apache.org/dist"),
+    ("CPAN_MIRROR", "https://search.cpan.org/CPAN"),
+    ("DEBIAN_MIRROR", "http://ftp.debian.org/debian/pool"),
+    ("GNOME_MIRROR", "https://download.gnome.org/sources"),
+    ("GNUPG_MIRROR", "https://www.gnupg.org/ftp/gcrypt"),
     ("GNU_MIRROR", "https://ftp.gnu.org/gnu"),
+    ("KERNELORG_MIRROR", "https://cdn.kernel.org/pub"),
+    ("MLPREFIX", ""),
+    (
+        "SAVANNAH_GNU_MIRROR",
+        "https://download.savannah.gnu.org/releases",
+    ),
+    (
+        "SAVANNAH_NONGNU_MIRROR",
+        "http://download-mirror.savannah.nongnu.org/releases",
+    ),
+    ("SOURCEFORGE_MIRROR", "https://downloads.sourceforge.net"),
     ("TARGET_ARCH", "x86_64"),
     ("WORKDIR", "."),
+    ("XORG_MIRROR", "https://www.x.org/releases"),
 ];
 
 #[derive(Debug, PartialEq)]
 pub struct Artifact {
-    src: String,
-    commit: Option<String>,
-    sha256: Option<String>,
+    pub src: String,
+    pub commit: Option<String>,
+    pub sha256: Option<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Value {
+    Valid(String),
+    Poisoned(String),
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Self::Valid(String::new())
+    }
+}
+
+impl Value {
+    pub fn maybe_poisoned(&self) -> &str {
+        match self {
+            Self::Valid(s) => s,
+            Self::Poisoned(s) => s,
+        }
+    }
+
+    pub fn push(&mut self, c: char) {
+        match self {
+            Self::Valid(s) => s.push(c),
+            Self::Poisoned(s) => s.push(c),
+        }
+    }
+
+    pub fn push_value(&mut self, other: &Value) {
+        *self = match (mem::take(self), other) {
+            (Self::Valid(s), Self::Valid(other)) => Self::Valid(s + other),
+            (Self::Valid(s), Self::Poisoned(other)) => Self::Poisoned(s + other),
+            (Self::Poisoned(s), other) => Self::Poisoned(s + other.maybe_poisoned()),
+        };
+    }
+
+    pub fn to_string(&self) -> Result<String> {
+        match self {
+            Self::Valid(s) => Ok(s.to_string()),
+            Self::Poisoned(s) => Err(Error::YoctoPoisonedStr(s.clone())),
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct BitBake {
-    vars: BTreeMap<String, String>,
+    vars: BTreeMap<String, Value>,
     src_uri: Vec<String>,
 }
 
@@ -32,17 +93,30 @@ impl BitBake {
         for (key, _value) in DEFAULTS {
             self.vars.remove(*key);
         }
+        self.vars.remove("GITHUB_BASE_URI");
     }
 
     fn assign<I: Into<String>, J: Into<String>>(&mut self, key: I, value: J) {
-        self.vars.insert(key.into(), value.into());
+        self.vars.insert(key.into(), Value::Valid(value.into()));
     }
 
-    pub fn artifacts(&self) -> Vec<Artifact> {
+    fn assign_value<I: Into<String>>(&mut self, key: I, value: Value) {
+        self.vars.insert(key.into(), value);
+    }
+
+    fn get_var<I: Into<String>>(&self, key: I) -> Result<Option<String>> {
+        let key = key.into();
+        let Some(value) = self.vars.get(&key) else {
+            return Ok(None);
+        };
+        Ok(Some(value.to_string()?))
+    }
+
+    pub fn artifacts(&self) -> Result<Vec<Artifact>> {
         let mut out = Vec::new();
 
-        let Some(value) = self.vars.get("SRC_URI") else {
-            return out;
+        let Some(value) = self.get_var("SRC_URI")? else {
+            return Ok(out);
         };
 
         for line in value.lines() {
@@ -52,14 +126,11 @@ impl BitBake {
 
             match src.split_once("://") {
                 Some(("http" | "https", _)) => {
-                    let sha256 = self
-                        .vars
-                        .get(&if let Some(name) = name {
-                            format!("SRC_URI[{name}.sha256sum]")
-                        } else {
-                            "SRC_URI[sha256sum]".to_string()
-                        })
-                        .cloned();
+                    let sha256 = self.get_var(if let Some(name) = name {
+                        format!("SRC_URI[{name}.sha256sum]")
+                    } else {
+                        "SRC_URI[sha256sum]".to_string()
+                    })?;
 
                     out.push(Artifact {
                         src: src.to_string(),
@@ -68,14 +139,11 @@ impl BitBake {
                     });
                 }
                 Some(("git", tail)) => {
-                    let commit = self
-                        .vars
-                        .get(&if let Some(name) = name {
-                            format!("SRCREV_{name}")
-                        } else {
-                            "SRCREV".to_string()
-                        })
-                        .cloned();
+                    let commit = self.get_var(if let Some(name) = name {
+                        format!("SRCREV_{name}")
+                    } else {
+                        "SRCREV".to_string()
+                    })?;
 
                     out.push(Artifact {
                         src: format!("git+https://{tail}"),
@@ -86,18 +154,16 @@ impl BitBake {
                 _ => (),
             }
         }
-        out
+        Ok(out)
     }
 
-    fn tokenize(&self, lines: &mut Lines) -> Option<Vec<String>> {
-        let Some(line) = lines.next() else {
-            return None;
-        };
+    fn tokenize(&self, lines: &mut Lines) -> Option<Vec<Value>> {
+        let line = lines.next()?;
 
         let mut out = Vec::new();
 
         let mut chars = line.chars().peekable();
-        let mut token: Option<String> = None;
+        let mut token: Option<Value> = None;
         let mut quoted = false;
         let mut var: Option<String> = None;
 
@@ -105,8 +171,11 @@ impl BitBake {
             match (&mut var, chars.next()) {
                 (var, Some('}')) if var.is_some() => {
                     if let Some(var) = var {
+                        let token = token.get_or_insert_with(Value::default);
                         if let Some(value) = self.vars.get(var) {
-                            token.get_or_insert_with(String::new).push_str(value);
+                            token.push_value(value);
+                        } else {
+                            token.push_value(&Value::Poisoned(format!("${{{var}}}")));
                         }
                     }
                     *var = None;
@@ -119,14 +188,14 @@ impl BitBake {
                     }
                 }
                 (_, Some('\"')) => {
-                    token.get_or_insert_with(String::new);
+                    token.get_or_insert_with(Value::default);
                     quoted = !quoted;
                 }
                 (_, Some('\\')) => match chars.next() {
-                    Some(c) => token.get_or_insert_with(String::new).push(c),
+                    Some(c) => token.get_or_insert_with(Value::default).push(c),
                     None => {
                         if let Some(line) = lines.next() {
-                            token.get_or_insert_with(String::new).push('\n');
+                            token.get_or_insert_with(Value::default).push('\n');
                             chars = line.chars().peekable();
                         } else {
                             break;
@@ -137,10 +206,10 @@ impl BitBake {
                     if chars.next_if_eq(&'{').is_some() {
                         var = Some(String::new());
                     } else {
-                        token.get_or_insert_with(String::new).push('$');
+                        token.get_or_insert_with(Value::default).push('$');
                     }
                 }
-                (_, Some(c)) => token.get_or_insert_with(String::new).push(c),
+                (_, Some(c)) => token.get_or_insert_with(Value::default).push(c),
                 (_, None) => {
                     if let Some(token) = token {
                         out.push(token);
@@ -158,7 +227,29 @@ pub fn parse(script: &str, package: Option<String>, version: Option<String>) -> 
     let mut bb = BitBake::default();
     bb.populate();
     if let Some(package) = package {
-        bb.assign("PN", package);
+        bb.assign("PN", package.clone());
+
+        let mut bpn = package.as_str();
+        for suffix in [
+            "-native",
+            "-cross",
+            "-initial",
+            "-intermediate",
+            "-crosssdk",
+            "-cross-canadian",
+        ] {
+            bpn = bpn.strip_suffix(suffix).unwrap_or(bpn);
+        }
+
+        bb.assign("BPN", bpn);
+        bb.assign(
+            "GITHUB_BASE_URI",
+            format!("https://github.com/{bpn}/{bpn}/releases"),
+        );
+
+        if let Some(version) = &version {
+            bb.assign("BP", format!("{bpn}-{version}"));
+        }
     }
     if let Some(version) = version {
         bb.assign("PV", version);
@@ -167,10 +258,11 @@ pub fn parse(script: &str, package: Option<String>, version: Option<String>) -> 
     let mut in_function = false;
     let mut lines = script.lines();
     while let Some(line) = bb.tokenize(&mut lines) {
-        let mut iter = line.iter().peekable();
-        iter.next_if(|x| *x == "export");
+        let mut iter = line.into_iter().peekable();
+        iter.next_if(|x| x.maybe_poisoned() == "export");
 
-        let var = match iter.next().map(|x| x.as_str()) {
+        let value = iter.next();
+        let var = match value.as_ref().map(|x| x.maybe_poisoned()) {
             Some(var) if var.starts_with('#') => continue,
             Some(var) if var.ends_with("()") => {
                 in_function = true;
@@ -186,22 +278,17 @@ pub fn parse(script: &str, package: Option<String>, version: Option<String>) -> 
 
         let Some(op) = iter.next() else { continue };
         let Some(value) = iter.next() else { continue };
-        if let Some(trailing) = iter.next() {
-            todo!("trailing data: {trailing:?}");
-        };
 
-        match op.as_str() {
-            "=" => bb.assign(var, value),
-            "?=" => bb.assign(var, value),
+        match op.maybe_poisoned() {
+            "=" => bb.assign_value(var, value),
+            "?=" => bb.assign_value(var, value),
             ".=" => {
-                bb.vars.entry(var.into()).or_default().push_str(value);
+                bb.vars.entry(var.into()).or_default().push_value(&value);
             }
             // we don't need this operation
             // "+=" => (),
             _ => continue,
         }
-
-        println!("line={line:?}");
     }
 
     bb.depopulate();
@@ -231,19 +318,21 @@ BBCLASSEXTEND = "native nativesdk"
             bb,
             BitBake {
                 vars: maplit::btreemap! {
-                    "BBCLASSEXTEND".to_string() => "native nativesdk".to_string(),
-                    "DEPENDS".to_string() => "gmp mpfr".to_string(),
-                    "LIC_FILES_CHKSUM".to_string() => "file://COPYING.LESSER;md5=e6a600fd5e1d9cbde2d983680233ad02".to_string(),
-                    "PN".to_string() => "libmpc".to_string(),
-                    "PV".to_string() => "1.3.1".to_string(),
-                    "S".to_string() => "./mpc-1.3.1".to_string(),
-                    "SRC_URI".to_string() => "https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz".to_string(),
-                    "SRC_URI[sha256sum]".to_string() => "ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8".to_string(),
+                    "BBCLASSEXTEND".to_string() => Value::Valid("native nativesdk".to_string()),
+                    "BP".to_string() => Value::Valid("libmpc-1.3.1".to_string()),
+                    "BPN".to_string() => Value::Valid("libmpc".to_string()),
+                    "DEPENDS".to_string() => Value::Valid("gmp mpfr".to_string()),
+                    "LIC_FILES_CHKSUM".to_string() => Value::Valid("file://COPYING.LESSER;md5=e6a600fd5e1d9cbde2d983680233ad02".to_string()),
+                    "PN".to_string() => Value::Valid("libmpc".to_string()),
+                    "PV".to_string() => Value::Valid("1.3.1".to_string()),
+                    "S".to_string() => Value::Valid("./mpc-1.3.1".to_string()),
+                    "SRC_URI".to_string() => Value::Valid("https://ftp.gnu.org/gnu/mpc/mpc-1.3.1.tar.gz".to_string()),
+                    "SRC_URI[sha256sum]".to_string() => Value::Valid("ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8".to_string()),
                 },
                 src_uri: vec![],
             }
         );
-        let artifacts = bb.artifacts();
+        let artifacts = bb.artifacts().unwrap();
         assert_eq!(
             artifacts,
             &[Artifact {
@@ -302,26 +391,28 @@ KERNEL_DEVICETREE:qemuarmv5 = "arm/versatile-pb.dtb"
             bb,
             BitBake {
                 vars: maplit::btreemap! {
-                    "COMPATIBLE_MACHINE".to_string() => "^(qemux86|qemux86-64|qemuarm64|qemuarm|qemuarmv5)$".to_string(),
-                    "KBRANCH".to_string() => "v6.6/standard/tiny/base".to_string(),
-                    "KCONFIG_MODE".to_string() => "--allnoconfig".to_string(),
-                    "KCONF_BSP_AUDIT_LEVEL".to_string() => "2".to_string(),
-                    "KERNEL_DEVICETREE:qemuarmv5".to_string() => "arm/versatile-pb.dtb".to_string(),
-                    "KERNEL_FEATURES".to_string() => "".to_string(),
-                    "KMETA".to_string() => "kernel-meta".to_string(),
-                    "LIC_FILES_CHKSUM".to_string() => "file://COPYING;md5=6bc538ed5bd9a7fc9398086aedcd7e46".to_string(),
-                    "LINUX_KERNEL_TYPE".to_string() => "tiny".to_string(),
-                    "LINUX_VERSION".to_string() => "6.6.32".to_string(),
-                    "PN".to_string() => "linux-yocto-tiny".to_string(),
-                    "PV".to_string() => "6.6.32+git".to_string(),
-                    "SRCREV_machine".to_string() => "9576b5b9f8e3c78e6c315f475def18e5c29e475a".to_string(),
-                    "SRCREV_meta".to_string() => "66bebb6789d02e775d4c93d7ca4bf79c2ead4b28".to_string(),
-                    "SRC_URI".to_string() => "git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n           git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https".to_string(),
+                    "BP".to_string() => Value::Valid("linux-yocto-tiny-6.6".to_string()),
+                    "BPN".to_string() => Value::Valid("linux-yocto-tiny".to_string()),
+                    "COMPATIBLE_MACHINE".to_string() => Value::Valid("^(qemux86|qemux86-64|qemuarm64|qemuarm|qemuarmv5)$".to_string()),
+                    "KBRANCH".to_string() => Value::Valid("v6.6/standard/tiny/base".to_string()),
+                    "KCONFIG_MODE".to_string() => Value::Valid("--allnoconfig".to_string()),
+                    "KCONF_BSP_AUDIT_LEVEL".to_string() => Value::Valid("2".to_string()),
+                    "KERNEL_DEVICETREE:qemuarmv5".to_string() => Value::Valid("arm/versatile-pb.dtb".to_string()),
+                    "KERNEL_FEATURES".to_string() => Value::Valid("".to_string()),
+                    "KMETA".to_string() => Value::Valid("kernel-meta".to_string()),
+                    "LIC_FILES_CHKSUM".to_string() => Value::Valid("file://COPYING;md5=6bc538ed5bd9a7fc9398086aedcd7e46".to_string()),
+                    "LINUX_KERNEL_TYPE".to_string() => Value::Valid("tiny".to_string()),
+                    "LINUX_VERSION".to_string() => Value::Valid("6.6.32".to_string()),
+                    "PN".to_string() => Value::Valid("linux-yocto-tiny".to_string()),
+                    "PV".to_string() => Value::Valid("6.6.32+git".to_string()),
+                    "SRCREV_machine".to_string() => Value::Valid("9576b5b9f8e3c78e6c315f475def18e5c29e475a".to_string()),
+                    "SRCREV_meta".to_string() => Value::Valid("66bebb6789d02e775d4c93d7ca4bf79c2ead4b28".to_string()),
+                    "SRC_URI".to_string() => Value::Valid("git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n           git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https".to_string()),
                 },
                 src_uri: vec![],
             }
         );
-        let artifacts = bb.artifacts();
+        let artifacts = bb.artifacts().unwrap();
         assert_eq!(
             artifacts,
             &[
@@ -381,26 +472,28 @@ CLEANBROKEN = "1"
             bb,
             BitBake {
                 vars: maplit::btreemap! {
-                    "BBCLASSEXTEND".to_string() => "native".to_string(),
-                    "CCLD_FOR_BUILD".to_string() => "".to_string(),
-                    "CLEANBROKEN".to_string() => "1".to_string(),
-                    "COMPATIBLE_HOST".to_string() => "(i.86|x86_64|arm|aarch64).*-linux".to_string(),
-                    "DESCRIPTION".to_string() => "efivar provides a simple command line interface to the UEFI variable facility".to_string(),
-                    "HOMEPAGE".to_string() => "https://github.com/rhboot/efivar".to_string(),
-                    "LICENSE".to_string() => "LGPL-2.1-or-later".to_string(),
-                    "LIC_FILES_CHKSUM".to_string() => "file://COPYING;md5=6626bb1e20189cfa95f2c508ba286393".to_string(),
-                    "PN".to_string() => "efivar".to_string(),
-                    "PV".to_string() => "39+39+git".to_string(),
-                    "RRECOMMENDS:efivar:class-target".to_string() => "kernel-module-efivarfs".to_string(),
-                    "S".to_string() => "./git".to_string(),
-                    "SRCREV".to_string() => "c47820c37ac26286559ec004de07d48d05f3308c".to_string(),
-                    "SRC_URI".to_string() => "git://github.com/rhinstaller/efivar.git;branch=main;protocol=https \n           file://0001-docs-do-not-build-efisecdb-manpage.patch \n           ".to_string(),
-                    "SUMMARY".to_string() => "Tools to manipulate UEFI variables".to_string(),
+                    "BBCLASSEXTEND".to_string() => Value::Valid("native".to_string()),
+                    "BP".to_string() => Value::Valid("efivar-39".to_string()),
+                    "BPN".to_string() => Value::Valid("efivar".to_string()),
+                    "CCLD_FOR_BUILD".to_string() => Value::Poisoned("${BUILD_CCLD}".to_string()),
+                    "CLEANBROKEN".to_string() => Value::Valid("1".to_string()),
+                    "COMPATIBLE_HOST".to_string() => Value::Valid("(i.86|x86_64|arm|aarch64).*-linux".to_string()),
+                    "DESCRIPTION".to_string() => Value::Valid("efivar provides a simple command line interface to the UEFI variable facility".to_string()),
+                    "HOMEPAGE".to_string() => Value::Valid("https://github.com/rhboot/efivar".to_string()),
+                    "LICENSE".to_string() => Value::Valid("LGPL-2.1-or-later".to_string()),
+                    "LIC_FILES_CHKSUM".to_string() => Value::Valid("file://COPYING;md5=6626bb1e20189cfa95f2c508ba286393".to_string()),
+                    "PN".to_string() => Value::Valid("efivar".to_string()),
+                    "PV".to_string() => Value::Valid("39+39+git".to_string()),
+                    "RRECOMMENDS:efivar:class-target".to_string() => Value::Valid("kernel-module-efivarfs".to_string()),
+                    "S".to_string() => Value::Valid("./git".to_string()),
+                    "SRCREV".to_string() => Value::Valid("c47820c37ac26286559ec004de07d48d05f3308c".to_string()),
+                    "SRC_URI".to_string() => Value::Valid("git://github.com/rhinstaller/efivar.git;branch=main;protocol=https \n           file://0001-docs-do-not-build-efisecdb-manpage.patch \n           ".to_string()),
+                    "SUMMARY".to_string() => Value::Valid("Tools to manipulate UEFI variables".to_string()),
                 },
                 src_uri: vec![],
             }
         );
-        let artifacts = bb.artifacts();
+        let artifacts = bb.artifacts().unwrap();
         assert_eq!(
             artifacts,
             &[Artifact {
@@ -474,27 +567,32 @@ do_install() {
             bb,
             BitBake {
                 vars: maplit::btreemap! {
-                    "CVE_PRODUCT".to_string() => "golang:go".to_string(),
-                    "HOMEPAGE".to_string() => " http://golang.org/".to_string(),
-                    "LICENSE".to_string() => "BSD-3-Clause".to_string(),
-                    "LIC_FILES_CHKSUM".to_string() => "file://LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707".to_string(),
-                    "PN".to_string() => "go-binary-native".to_string(),
-                    "PROVIDES".to_string() => "go-native".to_string(),
-                    "PV".to_string() => "1.22.3".to_string(),
-                    "S".to_string() => "./go".to_string(),
-                    "SRC_URI".to_string() => "https://dl.google.com/go/go1.22.3.-.tar.gz;name=go_".to_string(),
-                    "SRC_URI[go_linux_amd64.sha256sum]".to_string() => "8920ea521bad8f6b7bc377b4824982e011c19af27df88a815e3586ea895f1b36".to_string(),
-                    "SRC_URI[go_linux_arm64.sha256sum]".to_string() => "6c33e52a5b26e7aa021b94475587fce80043a727a54ceb0eee2f9fc160646434".to_string(),
-                    "SRC_URI[go_linux_ppc64le.sha256sum]".to_string() => "04b7b05283de30dd2da20bf3114b2e22cc727938aed3148babaf35cc951051ac".to_string(),
-                    "SUMMARY".to_string() => "Go programming language compiler (upstream binary for bootstrap)".to_string(),
-                    "UPSTREAM_CHECK_REGEX".to_string() => "go(?P<pver>d+(.d+)+).linux".to_string(),
-                    "UPSTREAM_CHECK_URI".to_string() => "https://golang.org/dl/".to_string(),
+                    "BP".to_string() => Value::Valid("go-binary-1.22.3".to_string()),
+                    "BPN".to_string() => Value::Valid("go-binary".to_string()),
+                    "CVE_PRODUCT".to_string() => Value::Valid("golang:go".to_string()),
+                    "HOMEPAGE".to_string() => Value::Valid(" http://golang.org/".to_string()),
+                    "LICENSE".to_string() => Value::Valid("BSD-3-Clause".to_string()),
+                    "LIC_FILES_CHKSUM".to_string() => Value::Valid("file://LICENSE;md5=5d4950ecb7b26d2c5e4e7b4e0dd74707".to_string()),
+                    "PN".to_string() => Value::Valid("go-binary-native".to_string()),
+                    "PROVIDES".to_string() => Value::Valid("go-native".to_string()),
+                    "PV".to_string() => Value::Valid("1.22.3".to_string()),
+                    "S".to_string() => Value::Valid("./go".to_string()),
+                    "SRC_URI".to_string() => Value::Poisoned("https://dl.google.com/go/go1.22.3.${BUILD_GOOS}-${BUILD_GOARCH}.tar.gz;name=go_${BUILD_GOTUPLE}".to_string()),
+                    "SRC_URI[go_linux_amd64.sha256sum]".to_string() => Value::Valid("8920ea521bad8f6b7bc377b4824982e011c19af27df88a815e3586ea895f1b36".to_string()),
+                    "SRC_URI[go_linux_arm64.sha256sum]".to_string() => Value::Valid("6c33e52a5b26e7aa021b94475587fce80043a727a54ceb0eee2f9fc160646434".to_string()),
+                    "SRC_URI[go_linux_ppc64le.sha256sum]".to_string() => Value::Valid("04b7b05283de30dd2da20bf3114b2e22cc727938aed3148babaf35cc951051ac".to_string()),
+                    "SUMMARY".to_string() => Value::Valid("Go programming language compiler (upstream binary for bootstrap)".to_string()),
+                    "UPSTREAM_CHECK_REGEX".to_string() => Value::Valid("go(?P<pver>d+(.d+)+).linux".to_string()),
+                    "UPSTREAM_CHECK_URI".to_string() => Value::Valid("https://golang.org/dl/".to_string()),
                 },
                 src_uri: vec![],
             }
         );
-        let artifacts = bb.artifacts();
-        assert_eq!(artifacts, &[]);
+        let err = bb.artifacts();
+        let Err(Error::YoctoPoisonedStr(err)) = err else {
+            panic!("Did not get expected error: {err:?}")
+        };
+        assert_eq!(err, "https://dl.google.com/go/go1.22.3.${BUILD_GOOS}-${BUILD_GOARCH}.tar.gz;name=go_${BUILD_GOTUPLE}");
     }
 
     #[test]
@@ -506,9 +604,9 @@ do_install() {
         assert_eq!(
             line,
             &[
-                String::from("LINUX_KERNEL_TYPE"),
-                String::from("="),
-                String::from("tiny"),
+                Value::Valid(String::from("LINUX_KERNEL_TYPE")),
+                Value::Valid(String::from("=")),
+                Value::Valid(String::from("tiny")),
             ]
         );
     }
@@ -521,9 +619,9 @@ do_install() {
         let line = bb.tokenize(&mut r#"SRC_URI = "git://git.yoctoproject.org/linux-yocto.git;branch=${KBRANCH};name=machine;protocol=https \
                    git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=${KMETA};protocol=https""#.lines()).unwrap();
         assert_eq!(line, &[
-            String::from("SRC_URI"),
-            String::from("="),
-            String::from("git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n                   git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https"),
+            Value::Valid(String::from("SRC_URI")),
+            Value::Valid(String::from("=")),
+            Value::Valid(String::from("git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n                   git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https")),
         ]);
     }
 
@@ -534,9 +632,9 @@ do_install() {
         assert_eq!(
             line,
             &[
-                String::from("KERNEL_FEATURES"),
-                String::from("="),
-                String::from(""),
+                Value::Valid(String::from("KERNEL_FEATURES")),
+                Value::Valid(String::from("=")),
+                Value::Valid(String::from("")),
             ]
         );
     }
@@ -553,9 +651,11 @@ do_install() {
         assert_eq!(
             line,
             &[
-                String::from("COMPATIBLE_MACHINE"),
-                String::from("="),
-                String::from("^(qemux86|qemux86-64|qemuarm64|qemuarm|qemuarmv5)$"),
+                Value::Valid(String::from("COMPATIBLE_MACHINE")),
+                Value::Valid(String::from("=")),
+                Value::Valid(String::from(
+                    "^(qemux86|qemux86-64|qemuarm64|qemuarm|qemuarmv5)$"
+                )),
             ]
         );
     }

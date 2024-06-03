@@ -703,6 +703,13 @@ impl From<Ref> for RefView {
                 );
                 (Cow::Borrowed("Void Linux"), Some(href))
             }
+            "yocto" => {
+                let href = format!(
+                    "https://layers.openembedded.org/layerindex/branch/master/recipes/?q={}",
+                    r.package
+                );
+                (Cow::Borrowed("Yocto Project"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 

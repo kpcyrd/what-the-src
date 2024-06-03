@@ -1,5 +1,5 @@
 use crate::args;
-use crate::db::{self, Task, TaskData};
+use crate::db;
 use crate::errors::*;
 use crate::pkgbuild;
 use crate::sbom;
@@ -175,37 +175,6 @@ impl SourceEntry {
     }
 }
 
-pub fn task_for_url(url: &str) -> Option<Task> {
-    match url.split_once("://") {
-        Some(("https" | "http", _)) => {
-            if utils::is_possible_tar_artifact(url) {
-                Task::new(
-                    format!("fetch:{url}"),
-                    &TaskData::FetchTar {
-                        url: url.to_string(),
-                        compression: None,
-                        success_ref: None,
-                    },
-                )
-                .ok()
-            } else {
-                None
-            }
-        }
-        Some((schema, _)) if schema.starts_with("git+") => {
-            debug!("Found git remote: {url:?}");
-            Task::new(
-                format!("git-clone:{url}"),
-                &TaskData::GitSnapshot {
-                    url: url.to_string(),
-                },
-            )
-            .ok()
-        }
-        _ => None,
-    }
-}
-
 pub async fn stream_data<R: AsyncRead + Unpin>(
     db: &db::Client,
     reader: R,
@@ -227,7 +196,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
         // TODO: check if already known
         if let Some(url) = &entry.url {
-            if let Some(task) = task_for_url(url) {
+            if let Some(task) = utils::task_for_url(url) {
                 db.insert_task(&task).await?;
             }
         }
