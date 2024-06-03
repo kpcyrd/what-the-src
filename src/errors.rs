@@ -86,6 +86,8 @@ pub enum Error {
     WolfiMissingChecksum(ingest::wolfi::Step),
     #[error("Unrecognized substitute in wolfi package: {0:?}")]
     WolfiUnknownSubstitute(String),
+    #[error("String is poisoned, failed to interpolate: {0:?}")]
+    YoctoPoisonedStr(String),
 }
 
 // TODO: consider fixing this

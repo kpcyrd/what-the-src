@@ -1,3 +1,4 @@
+use crate::db::{Task, TaskData};
 use crate::errors::*;
 use futures::TryStreamExt;
 use std::time::Duration;
@@ -50,5 +51,36 @@ pub fn is_possible_tar_artifact(url: &str) -> bool {
         false
     } else {
         url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz")
+    }
+}
+
+pub fn task_for_url(url: &str) -> Option<Task> {
+    match url.split_once("://") {
+        Some(("https" | "http", _)) => {
+            if is_possible_tar_artifact(url) {
+                Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                        compression: None,
+                        success_ref: None,
+                    },
+                )
+                .ok()
+            } else {
+                None
+            }
+        }
+        Some((schema, _)) if schema.starts_with("git+") => {
+            debug!("Found git remote: {url:?}");
+            Task::new(
+                format!("git-clone:{url}"),
+                &TaskData::GitSnapshot {
+                    url: url.to_string(),
+                },
+            )
+            .ok()
+        }
+        _ => None,
     }
 }

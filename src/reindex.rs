@@ -1,8 +1,8 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
-use crate::ingest;
 use crate::sbom;
+use crate::utils;
 use futures::StreamExt;
 use sqlx::types::chrono::Utc;
 
@@ -51,7 +51,7 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
             continue;
         };
 
-        if let Some(task) = ingest::pacman::task_for_url(&filename) {
+        if let Some(task) = utils::task_for_url(&filename) {
             info!("Inserting task: {task:?}");
             db.insert_task(&task).await?;
             scheduled += 1;

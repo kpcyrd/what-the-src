@@ -56,6 +56,7 @@ pub enum Plumbing {
     SyncHomebrew(SyncHomebrew),
     SyncGuix(SyncGuix),
     SyncVoid(SyncVoid),
+    SyncYocto(SyncYocto),
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
@@ -231,6 +232,16 @@ pub struct SyncGuix {
 /// Start an import of a software vendor (void)
 #[derive(Debug, Parser)]
 pub struct SyncVoid {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (yocto)
+#[derive(Debug, Parser)]
+pub struct SyncYocto {
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]
