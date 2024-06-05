@@ -568,6 +568,26 @@ impl Client {
         )
         .await
     }
+
+    pub async fn dangling_artifacts(&self) -> Result<Vec<String>> {
+        let mut result = sqlx::query(
+            "select * from (
+                select a.chksum, count(r.chksum) c
+                from artifacts a
+                left join aliases x on a.chksum = x.alias_to
+                left join refs r on r.chksum = x.alias_from or r.chksum = a.chksum
+                group by a.chksum
+            ) where c = 0",
+        )
+        .fetch(&self.pool);
+
+        let mut rows = Vec::new();
+        while let Some(row) = result.try_next().await? {
+            let chksum = row.get(0);
+            rows.push(chksum);
+        }
+        Ok(rows)
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
