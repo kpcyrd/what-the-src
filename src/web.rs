@@ -142,9 +142,9 @@ async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>,
     Ok(Box::new(warp::reply::html(html)))
 }
 
-fn detect_autotools(files: Option<&[ingest::tar::Entry]>) -> Result<bool> {
+fn detect_autotools(files: Option<&[ingest::tar::Entry]>) -> bool {
     let Some(files) = files else {
-        return Ok(false);
+        return false;
     };
 
     let mut configure = HashSet::new();
@@ -153,19 +153,19 @@ fn detect_autotools(files: Option<&[ingest::tar::Entry]>) -> Result<bool> {
     for file in files {
         if let Some(folder) = file.path.strip_suffix("/configure") {
             if configure_ac.contains(folder) {
-                return Ok(true);
+                return true;
             }
             configure.insert(folder);
         }
         if let Some(folder) = file.path.strip_suffix("/configure.ac") {
             if configure.contains(folder) {
-                return Ok(true);
+                return true;
             }
             configure_ac.insert(folder);
         }
     }
 
-    Ok(false)
+    false
 }
 
 async fn artifact(
@@ -197,7 +197,7 @@ async fn artifact(
             "sbom_refs": sbom_refs,
         }))))
     } else {
-        let suspecting_autotools = detect_autotools(files.as_deref())?;
+        let suspecting_autotools = detect_autotools(files.as_deref());
 
         let refs = db.get_all_refs_for(&artifact.chksum).await?;
         let files = hbs.render_archive(files.as_deref())?;
