@@ -28,7 +28,7 @@ use warp::{
     Filter,
 };
 
-const SEARCH_LIMIT: usize = 150;
+const SEARCH_LIMIT: usize = 250;
 
 #[allow(clippy::declare_interior_mutable_const)]
 const CACHE_CONTROL_DEFAULT: HeaderValue =
