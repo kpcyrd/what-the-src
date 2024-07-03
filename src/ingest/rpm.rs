@@ -40,13 +40,18 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
             filename.to_string()
         };
 
-        // TODO: find a better solution for this
-        let compression = if filename.ends_with(".tar.gz") || filename.ends_with(".crate") {
+        // TODO: find a better solution for this, can we just autodetect all regardless of file name?
+        let compression = if filename.ends_with(".tar.gz")
+            || filename.ends_with(".tgz")
+            || filename.ends_with(".crate")
+        {
             Some("gz")
         } else if filename.ends_with(".tar.xz") {
             Some("xz")
         } else if filename.ends_with(".tar.bz2") {
             Some("bz2")
+        } else if filename.ends_with(".tar") {
+            None
         } else {
             continue;
         };
