@@ -1,4 +1,4 @@
-FROM rust:alpine3.19
+FROM rust:alpine3.20
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 RUN apk add musl-dev postgresql-dev bzip2-dev xz-dev zstd-dev
 WORKDIR /app
@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cargo build --release --locked && \
     cp -v /var/cache/buildkit/target/release/what-the-src /
 
-FROM alpine:3.19
+FROM alpine:3.20
 RUN apk add libgcc libpq libbz2 xz-libs zstd-libs git
 # current rpm parser depends on /usr/bin/bsdtar
 RUN apk add libarchive-tools
