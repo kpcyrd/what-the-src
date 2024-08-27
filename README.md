@@ -38,6 +38,12 @@ what-the-src plumbing sync-rpm --vendor opensuse https://ftp.halifax.rwth-aachen
 what-the-src plumbing sync-gentoo --vendor gentoo --fetch https://github.com/gentoo-mirror/gentoo/archive/refs/heads/master.tar.gz
 ```
 
+### Sync live-bootstrap
+
+```
+what-the-src plumbing sync-live-bootstrap --vendor live-bootstrap --fetch https://github.com/fosslinux/live-bootstrap/archive/refs/heads/master.tar.gz
+```
+
 ### Sync Homebrew
 
 ```
