@@ -51,6 +51,7 @@ pub enum Plumbing {
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
+    SyncLiveBootstrap(SyncLiveBootstrap),
     SyncRpm(SyncRpm),
     SyncGentoo(SyncGentoo),
     SyncHomebrew(SyncHomebrew),
@@ -188,6 +189,16 @@ pub struct SyncPacman {
     /// The repositories to ingest e.g. `core-x86_64` or `extra-x86_64`
     #[arg(short, long = "repo", required = true)]
     pub repos: Vec<String>,
+    pub file: String,
+}
+
+/// Start an import of a software vendor (live-bootstrap)
+#[derive(Debug, Parser)]
+pub struct SyncLiveBootstrap {
+    #[arg(long)]
+    pub vendor: String,
+    #[arg(long)]
+    pub fetch: bool,
     pub file: String,
 }
 

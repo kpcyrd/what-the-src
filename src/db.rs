@@ -690,6 +690,13 @@ impl From<Ref> for RefView {
                 let href = format!("https://pkg.kali.org/pkg/{}", r.package);
                 (Cow::Borrowed("Kali"), Some(href))
             }
+            "live-bootstrap" => {
+                let href = format!(
+                    "https://github.com/fosslinux/live-bootstrap/blob/master/steps/{}-{}",
+                    r.package, r.version,
+                );
+                (Cow::Borrowed("live-bootstrap"), Some(href))
+            }
             "gentoo" => {
                 let href = format!("https://packages.gentoo.org/packages/{}", r.package);
                 (Cow::Borrowed("Gentoo"), Some(href))
