@@ -21,6 +21,7 @@ use crate::args::{Args, Plumbing, SubCommand};
 use crate::errors::*;
 use clap::Parser;
 use env_logger::Env;
+use tokio::io::{self, AsyncReadExt};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,6 +49,15 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::IngestWolfi(args)) => ingest::wolfi::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestVoid(args)) => ingest::void::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestSbom(args)) => sbom::run(&args).await,
+        SubCommand::Plumbing(Plumbing::ParsePkgbuild(_args)) => {
+            let mut bytes = Vec::new();
+            let mut stdin = io::stdin();
+            stdin.read_to_end(&mut bytes).await?;
+
+            let pkgbuild = pkgbuild::parse(&bytes)?;
+            println!("pkgbuild={pkgbuild:?}");
+            Ok(())
+        }
         SubCommand::Plumbing(Plumbing::SyncAlpine(args)) => sync::alpine::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncApt(args)) => sync::apt::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncPacman(args)) => sync::pacman::run(&args).await,

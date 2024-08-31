@@ -48,6 +48,7 @@ pub enum Plumbing {
     IngestWolfi(IngestWolfi),
     IngestVoid(IngestVoid),
     IngestSbom(IngestSbom),
+    ParsePkgbuild(ParsePkgbuild),
     SyncAlpine(SyncAlpine),
     SyncApt(SyncApt),
     SyncPacman(SyncPacman),
@@ -149,6 +150,10 @@ pub struct IngestSbom {
     pub strain: String,
     pub file: String,
 }
+
+/// Attempt parsing a PKGBUILD
+#[derive(Debug, Parser)]
+pub struct ParsePkgbuild {}
 
 /// Start an import of a software vendor (alpine)
 #[derive(Debug, Parser)]
