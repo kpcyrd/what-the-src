@@ -37,7 +37,7 @@ jobs:
         docker run --rm whatsrc --help
 
     - name: Login to github container registry
-      if: github.event_name != 'pull_request'
+      if: github.event_name != 'pull_request' && ( github.ref_name == 'main' || github.ref_type == 'tag' )
       uses: docker/login-action@v3
       with:
         registry: ghcr.io
