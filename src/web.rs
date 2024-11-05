@@ -469,9 +469,8 @@ impl FromStr for Diff {
 
         let s = s
             .strip_prefix("-sorted")
-            .map(|s| {
+            .inspect(|_| {
                 diff.sorted = true;
-                s
             })
             .unwrap_or(s);
 
