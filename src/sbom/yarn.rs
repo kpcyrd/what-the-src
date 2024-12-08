@@ -15,7 +15,7 @@ impl YarnLock {
     pub fn parse(&self) -> Result<ParsedLock> {
         let yarn = yarn_lock_parser::parse_str(&self.data)?;
         let mut packages = VecDeque::new();
-        for entry in yarn {
+        for entry in yarn.entries {
             let checksum = if let Some((family, value)) = entry.integrity.split_once('-') {
                 let digest = hex::encode(BASE64.decode(value.as_bytes())?);
                 Some(format!("{family}:{digest}"))
