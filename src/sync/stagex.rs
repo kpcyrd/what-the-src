@@ -1,5 +1,5 @@
 use crate::args;
-use crate::db;
+use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::utils;
 use async_compression::tokio::bufread::GzipDecoder;
@@ -106,7 +106,7 @@ pub struct Source {
 }
 
 pub async fn run(args: &args::SyncStagex) -> Result<()> {
-    let _db = db::Client::create().await?;
+    let db = db::Client::create().await?;
     let vendor = &args.vendor;
 
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
@@ -139,8 +139,32 @@ pub async fn run(args: &args::SyncStagex) -> Result<()> {
         debug!("Parsed stagex package.toml: {manifest:?}");
 
         let refs = manifest.resolve_refs(vendor)?;
-        for source_ref in &refs {
-            println!("ref={source_ref:?}");
+        for obj in &refs {
+            let chksum = &obj.chksum;
+            let Some(url) = &obj.filename else {
+                continue;
+            };
+            debug!("chksum={chksum:?} url={url:?}");
+
+            if !utils::is_possible_tar_artifact(url) {
+                continue;
+            }
+
+            info!("insert: {obj:?}");
+            db.insert_ref(obj).await?;
+
+            if db.resolve_artifact(chksum).await?.is_none() {
+                info!("Adding download task: url={url:?}");
+                db.insert_task(&Task::new(
+                    format!("fetch:{url}"),
+                    &TaskData::FetchTar {
+                        url: url.to_string(),
+                        compression: None,
+                        success_ref: None,
+                    },
+                )?)
+                .await?;
+            }
         }
     }
 
