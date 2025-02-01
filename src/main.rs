@@ -70,6 +70,7 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::SyncGuix(args)) => sync::guix::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncVoid(args)) => sync::void::run(&args).await,
         SubCommand::Plumbing(Plumbing::SyncYocto(args)) => sync::yocto::run(&args).await,
+        SubCommand::Plumbing(Plumbing::SyncStagex(args)) => sync::stagex::run(&args).await,
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexUrl(args)) => reindex::run_url(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexSbom(args)) => reindex::run_sbom(&args).await,

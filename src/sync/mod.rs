@@ -6,5 +6,6 @@ pub mod homebrew;
 pub mod live_bootstrap;
 pub mod pacman;
 pub mod rpm;
+pub mod stagex;
 pub mod void;
 pub mod yocto;

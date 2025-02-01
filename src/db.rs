@@ -639,7 +639,7 @@ pub struct SbomRef {
     pub path: String,
 }
 
-#[derive(sqlx::FromRow, Debug, Serialize)]
+#[derive(sqlx::FromRow, Debug, Serialize, PartialEq)]
 pub struct Ref {
     pub chksum: String,
     pub vendor: String,

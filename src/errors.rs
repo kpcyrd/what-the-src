@@ -1,4 +1,5 @@
 use crate::ingest;
+use crate::sync::stagex;
 pub use log::{debug, error, info, trace, warn};
 use std::process::ExitStatus;
 
@@ -88,6 +89,12 @@ pub enum Error {
     WolfiUnknownSubstitute(String),
     #[error("String is poisoned, failed to interpolate: {0:?}")]
     YoctoPoisonedStr(String),
+    #[error("Stagex package has no mirrors for source: {0:?}")]
+    StagexMissingMirrors(stagex::Source),
+    #[error("Stagex interpolate expression is never closed: {0:?}")]
+    StagexUnclosedInterpolate(String),
+    #[error("Stagex interpolate expression references undefined variable: {0:?}")]
+    StagexUndefinedVariable(String),
 }
 
 // TODO: consider fixing this
