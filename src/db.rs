@@ -737,6 +737,10 @@ impl From<Ref> for RefView {
                 );
                 (Cow::Borrowed("Yocto Project"), Some(href))
             }
+            "stagex" => {
+                let href = format!("https://stagex.tools/packages/{}/", r.package);
+                (Cow::Borrowed("stagex"), Some(href))
+            }
             other => (Cow::Owned(other.to_owned()), None),
         };
 
