@@ -79,3 +79,9 @@ what-the-src plumbing sync-void --vendor void --fetch https://repo-fastly.voidli
 ```
 what-the-src plumbing sync-yocto --vendor yocto --fetch https://git.openembedded.org/openembedded-core/snapshot/master.tar.gz
 ```
+
+### Sync StageX
+
+```
+what-the-src plumbing sync-stagex --vendor stagex --fetch https://codeberg.org/stagex/stagex/archive/main.tar.gz
+```
