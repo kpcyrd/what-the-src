@@ -19,6 +19,11 @@ main h2 {
     margin: 5px 0;
 }
 
+sup {
+    vertical-align: top;
+    font-size: 0.55em;
+}
+
 .word-wrap {
     word-wrap: break-word;
 }
