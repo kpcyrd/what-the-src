@@ -4,6 +4,22 @@ What the src?!
 {{#*inline "page"}}
 <h1 class="word-wrap">What the src?!</h1>
 <p>This is a source code indexing project, ingesting the source code inputs of Linux distributions and showing which artifact is used by which package.</p>
+
+<p>It aims to:</p>
+<ul>
+<li>Document where distros agree on source code</li>
+<li>Document where distros disagree on source code</li>
+<li>Highlight what source code we're actually putting into our computers</li>
+<li>Track high profile source code releases
+<ul>
+<li>Malware in a random npm package: we sleep</li>
+<li>Malware in the whatsrc dataset: big oof</li>
+</ul>
+</li>
+</ul>
+
+<p>Because secure, decentralized naming systems are <a href="https://en.wikipedia.org/wiki/Zooko%27s_triangle">very hard</a>, whatsrc is referring to source code using a cryptographic hash of its tar representation, effectively addressing it by content.</p>
+
 <h2>Search by name</h2>
 <center>
 <form action="/search">
