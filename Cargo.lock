@@ -1610,6 +1610,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "nom-language"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de2bc5b451bfedaef92c90b8939a8fff5770bdcc1fafd6239d086aab8fa6b29"
+dependencies = [
+ "nom 8.0.0",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2200,7 +2218,7 @@ dependencies = [
  "itertools",
  "log",
  "md-5",
- "nom",
+ "nom 7.1.3",
  "num",
  "num-derive",
  "num-traits",
@@ -3787,23 +3805,24 @@ checksum = "c5b940ebc25896e71dd073bad2dbaa2abfe97b0a391415e22ad1326d9c54e3c4"
 
 [[package]]
 name = "yarn-lock-parser"
-version = "0.8.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a95009588f0892ce00664e39120a29901d9930c509f3c124521f7080f1419a2c"
+checksum = "46a94a329f3c1ca33731094a08af14c21180556c86292842c57c150a7bd87b59"
 dependencies = [
- "nom",
+ "nom 8.0.0",
+ "nom-language",
  "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "yash-syntax"
-version = "0.12.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "790305eeb52eaa61d18216b7d6807bb77a8ecc15ccc4491a4601923b17ecfb8d"
+checksum = "98ecaad089c0bb4df8a3f88de03f4b891b1fa55396a7daee883810391e156940"
 dependencies = [
  "futures-util",
  "itertools",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
