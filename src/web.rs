@@ -138,7 +138,7 @@ fn cache_control(reply: impl warp::Reply, value: HeaderValue) -> impl warp::Repl
 }
 
 async fn index(hbs: Arc<Handlebars<'_>>) -> result::Result<Box<dyn warp::Reply>, warp::Rejection> {
-    let html = hbs.render("index.html.hbs", &()).map_err(Error::from)?;
+    let html = hbs.render("index.html.hbs", &())?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
@@ -214,26 +214,24 @@ async fn artifact(
             }
         }
 
-        let html = hbs
-            .render(
-                "artifact.html.hbs",
-                &json!({
-                    "artifact": artifact,
-                    "chksum": chksum,
-                    "alias": alias,
-                    "refs": json!([{
-                        "title": "Build input of",
-                        "refs": build_inputs,
-                    }, {
-                        "title": "Found at",
-                        "refs": found_at,
-                    }]),
-                    "sbom_refs": sbom_refs,
-                    "files": files,
-                    "suspecting_autotools": suspecting_autotools,
-                }),
-            )
-            .map_err(Error::from)?;
+        let html = hbs.render(
+            "artifact.html.hbs",
+            &json!({
+                "artifact": artifact,
+                "chksum": chksum,
+                "alias": alias,
+                "refs": json!([{
+                    "title": "Build input of",
+                    "refs": build_inputs,
+                }, {
+                    "title": "Found at",
+                    "refs": found_at,
+                }]),
+                "sbom_refs": sbom_refs,
+                "files": files,
+                "suspecting_autotools": suspecting_autotools,
+            }),
+        )?;
         Ok(Box::new(warp::reply::html(html)))
     }
 }
@@ -270,17 +268,15 @@ async fn sbom(
             }
         };
 
-        let html = hbs
-            .render(
-                "sbom.html.hbs",
-                &json!({
-                    "sbom": sbom,
-                    "chksum": chksum,
-                    "sbom_refs": sbom_refs,
-                    "packages": packages,
-                }),
-            )
-            .map_err(Error::from)?;
+        let html = hbs.render(
+            "sbom.html.hbs",
+            &json!({
+                "sbom": sbom,
+                "chksum": chksum,
+                "sbom_refs": sbom_refs,
+                "packages": packages,
+            }),
+        )?;
         Ok(Box::new(warp::reply::html(html)))
     }
 }
@@ -354,15 +350,13 @@ async fn search(
 
     let refs = db.search(&query, SEARCH_LIMIT).await?;
 
-    let html = hbs
-        .render(
-            "search.html.hbs",
-            &json!({
-                "search": search.q,
-                "refs": refs,
-            }),
-        )
-        .map_err(Error::from)?;
+    let html = hbs.render(
+        "search.html.hbs",
+        &json!({
+            "search": search.q,
+            "refs": refs,
+        }),
+    )?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
@@ -419,7 +413,7 @@ async fn stats(
         data.insert(key, values);
     }
 
-    let html = hbs.render("stats.html.hbs", &data).map_err(Error::from)?;
+    let html = hbs.render("stats.html.hbs", &data)?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
@@ -567,21 +561,19 @@ async fn diff(
     let diff = diff.to_string();
     let diff_lines = diff.split('\n').collect::<Vec<_>>();
 
-    let html = hbs
-        .render(
-            "diff.html.hbs",
-            &json!({
-                "diff": diff_lines,
-                "diff_from": diff_from,
-                "diff_to": diff_to,
-                "options": options,
-                "sorted": options.sorted,
-                "trimmed": options.trim_left || options.trim_right,
-                "trim_left": options.trim_left,
-                "trim_right": options.trim_right,
-            }),
-        )
-        .map_err(Error::from)?;
+    let html = hbs.render(
+        "diff.html.hbs",
+        &json!({
+            "diff": diff_lines,
+            "diff_from": diff_from,
+            "diff_to": diff_to,
+            "options": options,
+            "sorted": options.sorted,
+            "trimmed": options.trim_left || options.trim_right,
+            "trim_left": options.trim_left,
+            "trim_right": options.trim_right,
+        }),
+    )?;
     Ok(Box::new(warp::reply::html(html)))
 }
 
