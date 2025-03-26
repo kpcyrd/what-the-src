@@ -17,20 +17,43 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Install melange
+      run: |
+        wget -O melange.tgz 'https://github.com/chainguard-dev/melange/releases/download/v0.7.0/melange_0.7.0_linux_amd64.tar.gz'
+        echo '00523c7ce0dba3ce77f50c2f6693059c0950ddd815aec8c565a014108301d957  melange.tgz' | sha256sum -c -
+        tar -xvzf melange.tgz --strip-components=1 --wildcards '*/melange'
+        sudo install -m755 melange -t /usr/bin
+
+    - name: Install apko
+      run: |
+        wget -O apko.tgz 'https://github.com/chainguard-dev/apko/releases/download/v0.14.1/apko_0.14.1_linux_amd64.tar.gz'
+        echo 'fd44853e845bc47d345b35840c76d1a0ef878e169ff8f9af48b595caa91456ce  apko.tgz' | sha256sum -c -
+        tar -xvzf apko.tgz --strip-components=1 --wildcards '*/apko'
+        sudo install -m755 apko -t /usr/bin
+
     - name: Set up cargo cache
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          target/
-        key: ${{ runner.os }}-cargo-debug-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-debug-
+          melange-cache
+        key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-release-
 
-    - name: Build
-      run: cargo build --locked --verbose
+    - name: Setup
+      run: |
+        mkdir -p melange-cache/
+        melange keygen melange.rsa --key-size 2048
+
+    - name: Build package
+      run: |
+        TMPDIR=/var/tmp melange build --signing-key melange.rsa --runner docker
+        sudo find melange-cache -type f -exec chmod chmod og+r {} \+
+
+    #- name: Build image
+    #  run: |
+    #    apko build apko.yaml what-the-src:edge container.tar
+    #    tar tvvf container.tar
+
   unit-test:
     runs-on: ubuntu-24.04
     steps:
