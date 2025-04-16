@@ -69,7 +69,11 @@ impl Manifest {
                 }
                 "version_strip_suffix" => {
                     let version = self.version(source)?;
-                    version.splitn(2, '-').next().unwrap_or(&version).to_string()
+                    version
+                        .splitn('-')
+                        .next()
+                        .unwrap_or(&version)
+                        .to_string()
                 }
                 _ => return Err(Error::StagexUndefinedVariable(key.to_string())),
             };
