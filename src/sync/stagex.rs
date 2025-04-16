@@ -58,6 +58,19 @@ impl Manifest {
                     let version = self.version(source)?;
                     version.replace('.', "_")
                 }
+                "version_major" => {
+                    let version = self.version(source)?;
+                    version.split('.').next().unwrap_or("").to_string()
+                }
+                "version_major_minor" => {
+                    let version = self.version(source)?;
+                    let parts: Vec<&str> = version.split('.').collect();
+                    format!("{}.{}", parts[0], parts[1])
+                }
+                "version_strip_suffix" => {
+                    let version = self.version(source)?;
+                    version.splitn(2, '-').next().unwrap_or(&version).to_string()
+                }
                 _ => return Err(Error::StagexUndefinedVariable(key.to_string())),
             };
             out.push_str(&value);
