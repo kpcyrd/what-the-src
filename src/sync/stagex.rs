@@ -65,13 +65,17 @@ impl Manifest {
                 "version_major_minor" => {
                     let version = self.version(source)?;
                     let parts: Vec<&str> = version.split('.').collect();
-                    format!("{}.{}", parts[0], parts[1])
+                    if parts.len() >= 2 {
+                        format!("{}.{}", parts[0], parts[1])
+                    } else {
+                        version.to_string()
+                    }
                 }
                 "version_strip_suffix" => {
                     let version = self.version(source)?;
                     version
-                        .splitn('-')
-                        .next()
+                        .rsplit_once('-')
+                        .map(|(x, _)| x)
                         .unwrap_or(&version)
                         .to_string()
                 }
