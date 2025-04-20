@@ -37,6 +37,8 @@ async fn main() -> Result<()> {
 
     dotenvy::dotenv().ok();
 
+    println!("test commit");
+
     match args.subcommand {
         SubCommand::Web(args) => web::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
