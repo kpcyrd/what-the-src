@@ -1,0 +1,15 @@
+archs:
+  - amd64
+
+contents:
+  keyring:
+    - melange.rsa.pub
+  repositories:
+    - https://dl-cdn.alpinelinux.org/alpine/edge/main
+    - "@local packages"
+  packages:
+    - alpine-base
+    - "what-the-src@local"
+
+entrypoint:
+  command: what-the-src
