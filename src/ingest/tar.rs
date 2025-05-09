@@ -40,7 +40,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    fn from_tar_header<R: AsyncRead + Unpin>(
+    pub fn from_tar_header<R: AsyncRead + Unpin>(
         entry: &tokio_tar::Entry<R>,
     ) -> Result<Option<(Self, bool)>> {
         let header = entry.header();
