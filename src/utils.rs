@@ -58,6 +58,7 @@ pub fn task_for_url(url: &str) -> Option<Task> {
     match url.split_once("://") {
         Some(("https" | "http", _)) => {
             if is_possible_tar_artifact(url) {
+                debug!("Found possible tar remote: {url:?}");
                 Task::new(
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {

@@ -74,11 +74,11 @@ impl Snapshot {
         })
     }
 
-    fn get_from_archvec(vec: &[srcinfo::ArchVec]) -> &[String] {
-        vec.iter()
-            .find(|x| x.arch.is_none())
-            .map(|e| &e.vec[..])
-            .unwrap_or(&[])
+    fn get_from_archvec(vec: &srcinfo::ArchVecs) -> &[String] {
+        let Some(vec) = vec.get_any() else {
+            return &[];
+        };
+        vec.values()
     }
 
     fn source_entries_from_lists(
@@ -120,7 +120,7 @@ impl Snapshot {
 
     pub fn source_entries(&self) -> Result<Vec<SourceEntry>> {
         if let Some(srcinfo) = &self.srcinfo {
-            let srcinfo = Srcinfo::parse_buf(srcinfo.as_bytes())?;
+            let srcinfo = Srcinfo::from_buf(srcinfo.as_bytes())?;
             let sources = Self::get_from_archvec(&srcinfo.base.source);
             let sha256sums = Self::get_from_archvec(&srcinfo.base.sha256sums);
             let sha512sums = Self::get_from_archvec(&srcinfo.base.sha512sums);
