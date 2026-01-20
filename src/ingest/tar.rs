@@ -130,7 +130,7 @@ impl TarEntryKey {
     }
 }
 
-async fn stream_entry_content<R: AsyncRead + Unpin>(
+async fn stream_content<R: AsyncRead + Unpin>(
     mut entry: R,
     mut data: Option<&mut Vec<u8>>,
 ) -> Result<String> {
@@ -153,26 +153,33 @@ async fn stream_entry_content<R: AsyncRead + Unpin>(
     Ok(digest)
 }
 
-#[derive(Default)]
-struct TarSummaryBuilder {
+struct TarSummaryBuilder<'a> {
+    db: Option<&'a db::Client>,
     files: Vec<Entry>,
     sbom_refs: Vec<sbom::Ref>,
 }
 
-impl TarSummaryBuilder {
-    async fn stream_entry<R: AsyncRead + Unpin>(
+impl<'a> TarSummaryBuilder<'a> {
+    fn new(db: Option<&'a db::Client>) -> Self {
+        Self {
+            db,
+            files: Vec::new(),
+            sbom_refs: Vec::new(),
+        }
+    }
+
+    async fn stream_entry_content<R: AsyncRead + Unpin>(
         &mut self,
-        db: Option<&db::Client>,
         mut entry: R,
         entry_key: &TarEntryKey,
     ) -> Result<String> {
         let sbom = sbom::detect_from_filename(entry_key.filename.as_deref());
 
         let mut data = Vec::<u8>::new();
-        let digest = stream_entry_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
+        let digest = stream_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
 
         if let Some(sbom) = sbom
-            && let Some(db) = db
+            && let Some(db) = &self.db
             && let Ok(data) = String::from_utf8(data)
         {
             let sbom = sbom::Sbom::new(sbom, data)?;
@@ -195,6 +202,34 @@ impl TarSummaryBuilder {
         }
 
         Ok(digest)
+    }
+
+    async fn stream_entry<R: AsyncRead + Unpin>(
+        &mut self,
+        mut entry: tokio_tar::Entry<R>,
+    ) -> Result<()> {
+        let Some((metadata, is_file)) = Metadata::from_tar_header(&entry)? else {
+            return Ok(());
+        };
+
+        let entry_key = TarEntryKey::new(&entry.path()?);
+
+        let digest = if is_file {
+            let digest = self.stream_entry_content(&mut entry, &entry_key).await?;
+            Some(digest)
+        } else {
+            None
+        };
+
+        let entry = Entry {
+            path: entry_key.path,
+            digest,
+            metadata,
+        };
+        debug!("Found entry={entry:?}");
+
+        self.files.push(entry);
+        Ok(())
     }
 
     fn finish(self, inner_digests: Checksums, outer_digests: Checksums) -> TarSummary {
@@ -223,34 +258,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     };
     let reader = Hasher::new(reader);
 
-    // Open archive
+    // Open and read archive
     let mut tar = Archive::new(reader);
-    let mut builder = TarSummaryBuilder::default();
+    let mut builder = TarSummaryBuilder::new(db);
     {
         let mut entries = tar.entries()?;
         while let Some(entry) = entries.next().await {
-            let mut entry = entry?;
-            let Some((metadata, is_file)) = Metadata::from_tar_header(&entry)? else {
-                continue;
-            };
-
-            let entry_key = TarEntryKey::new(&entry.path()?);
-
-            let digest = if is_file {
-                let digest = builder.stream_entry(db, &mut entry, &entry_key).await?;
-                Some(digest)
-            } else {
-                None
-            };
-
-            let entry = Entry {
-                path: entry_key.path,
-                digest,
-                metadata,
-            };
-            debug!("Found entry={entry:?}");
-
-            builder.files.push(entry);
+            let entry = entry?;
+            builder.stream_entry(entry).await?;
         }
     }
     let Ok(mut reader) = tar.into_inner() else {
