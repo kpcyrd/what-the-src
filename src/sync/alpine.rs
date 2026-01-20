@@ -104,7 +104,8 @@ pub async fn run(args: &args::SyncAlpine) -> Result<()> {
             }
 
             // queue for import
-            info!("Inserting task: vendor={vendor:?} origin={origin:?} commit={commit:?}");
+            // this is only "debug" log because many APKBUILDs fail symbolic execution
+            debug!("Inserting task: vendor={vendor:?} origin={origin:?} commit={commit:?}");
             db.insert_task(&db::Task::new(
                 format!("{vendor}-apkbuild:{origin}:{commit}"),
                 &db::TaskData::ApkbuildGit {
