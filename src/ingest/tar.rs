@@ -93,6 +93,29 @@ pub struct TarSummary {
     pub sbom_refs: Vec<sbom::Ref>,
 }
 
+impl TarSummary {
+    async fn insert_db(&self, db: &db::Client, outer_label: &'static str) -> Result<()> {
+        db.insert_artifact(&self.inner_digests.sha256, &self.files)
+            .await?;
+        db.register_chksums_aliases(&self.inner_digests, &self.inner_digests.sha256, "tar")
+            .await?;
+        db.register_chksums_aliases(&self.outer_digests, &self.inner_digests.sha256, outer_label)
+            .await?;
+
+        for sbom in &self.sbom_refs {
+            db.insert_sbom_ref(
+                &self.inner_digests.sha256,
+                sbom.strain,
+                &sbom.chksum,
+                &sbom.path,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+}
+
 /// The processed entry key of a tar archive
 struct TarEntryKey {
     path: String,
@@ -173,6 +196,15 @@ impl TarSummaryBuilder {
 
         Ok(digest)
     }
+
+    fn finish(self, inner_digests: Checksums, outer_digests: Checksums) -> TarSummary {
+        TarSummary {
+            inner_digests,
+            outer_digests,
+            files: self.files,
+            sbom_refs: self.sbom_refs,
+        }
+    }
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
@@ -236,27 +268,12 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let (_stream, outer_digests) = reader.digests();
     info!("Found digests for outer compressed tar: {outer_digests:?}");
 
+    // Finalize summary, insert into db
+    let summary = builder.finish(inner_digests, outer_digests);
     if let Some(db) = db {
-        // Insert into database
-        db.insert_artifact(&inner_digests.sha256, &builder.files)
-            .await?;
-        db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
-            .await?;
-        db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
-            .await?;
-
-        for sbom in &builder.sbom_refs {
-            db.insert_sbom_ref(&inner_digests.sha256, sbom.strain, &sbom.chksum, &sbom.path)
-                .await?;
-        }
+        summary.insert_db(db, outer_label).await?;
     }
-
-    Ok(TarSummary {
-        inner_digests,
-        outer_digests,
-        files: builder.files,
-        sbom_refs: builder.sbom_refs,
-    })
+    Ok(summary)
 }
 
 pub async fn run(args: &args::IngestTar) -> Result<()> {
