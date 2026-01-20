@@ -232,6 +232,27 @@ impl<'a> TarSummaryBuilder<'a> {
         Ok(())
     }
 
+    async fn stream_archive<R: AsyncRead + Unpin>(&mut self, reader: R) -> Result<R> {
+        // Open and read archive
+        let mut tar = Archive::new(reader);
+        {
+            let mut entries = tar.entries()?;
+            while let Some(entry) = entries.next().await {
+                let entry = entry?;
+                self.stream_entry(entry).await?;
+            }
+        }
+        let Ok(mut reader) = tar.into_inner() else {
+            panic!("can't get hasher from tar reader")
+        };
+
+        // Consume any remaining data
+        io::copy(&mut reader, &mut io::sink()).await?;
+
+        // Return the finished reader
+        Ok(reader)
+    }
+
     fn finish(self, inner_digests: Checksums, outer_digests: Checksums) -> TarSummary {
         TarSummary {
             inner_digests,
@@ -259,21 +280,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let reader = Hasher::new(reader);
 
     // Open and read archive
-    let mut tar = Archive::new(reader);
     let mut builder = TarSummaryBuilder::new(db);
-    {
-        let mut entries = tar.entries()?;
-        while let Some(entry) = entries.next().await {
-            let entry = entry?;
-            builder.stream_entry(entry).await?;
-        }
-    }
-    let Ok(mut reader) = tar.into_inner() else {
-        panic!("can't get hasher from tar reader")
-    };
-
-    // Consume any remaining data
-    io::copy(&mut reader, &mut io::sink()).await?;
+    let reader = builder.stream_archive(reader).await?;
 
     // Determine hashes
     let (reader, inner_digests) = reader.digests();
