@@ -241,7 +241,7 @@ pub async fn run(args: &args::Worker) -> Result<()> {
         if let Some(task) = worker.db.get_random_task().await? {
             info!("task={task:?}");
             if let Err(err) = worker.do_task(&task).await {
-                error!("Failed to process task: {err:#}");
+                error!("Failed to process task ({:?}: {:#}", task.key, err);
                 worker
                     .db
                     .bump_task_error_counter(&task, &format!("{err:#}"))

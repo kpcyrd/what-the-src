@@ -72,7 +72,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                         let chksum = format!("sha256:{}", entry.hash);
                         let package = pkg.package.to_string();
                         let version = pkg.version.clone().unwrap();
-                        info!(
+                        debug!(
                             "digest={chksum:?} package={package:?} version={version:?} name={name:?}"
                         );
                         let obj = db::Ref {
@@ -91,7 +91,7 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                         if args.reindex || db.resolve_artifact(&obj.chksum).await?.is_none() {
                             let directory = pkg.directory.as_ref().unwrap();
                             let url = format!("{base_url}/{directory}/{name}");
-                            info!("url={url:?}");
+                            info!("Found new tarball, url={url:?}");
                             db.insert_task(&Task::new(
                                 format!("fetch:{url}"),
                                 &TaskData::FetchTar {
