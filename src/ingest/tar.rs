@@ -8,6 +8,7 @@ use digest::Digest;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
@@ -92,6 +93,20 @@ pub struct TarSummary {
     pub sbom_refs: Vec<sbom::Ref>,
 }
 
+/// The processed entry key of a tar archive
+struct TarEntryKey {
+    path: String,
+    filename: Option<String>,
+}
+
+impl TarEntryKey {
+    fn new(path: &Path) -> Self {
+        let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
+        let path = path.to_string_lossy().into_owned();
+        Self { path, filename }
+    }
+}
+
 async fn stream_entry_content<R: AsyncRead + Unpin>(
     mut entry: R,
     mut data: Option<&mut Vec<u8>>,
@@ -115,25 +130,49 @@ async fn stream_entry_content<R: AsyncRead + Unpin>(
     Ok(digest)
 }
 
-async fn stream_entry<R: AsyncRead + Unpin>(
-    mut entry: R,
-    filename: Option<&str>,
-) -> Result<(String, Option<sbom::Sbom>)> {
-    let sbom = sbom::detect_from_filename(filename);
+#[derive(Default)]
+struct TarSummaryBuilder {
+    files: Vec<Entry>,
+    sbom_refs: Vec<sbom::Ref>,
+}
 
-    let mut data = Vec::<u8>::new();
-    let digest = stream_entry_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
+impl TarSummaryBuilder {
+    async fn stream_entry<R: AsyncRead + Unpin>(
+        &mut self,
+        db: Option<&db::Client>,
+        mut entry: R,
+        entry_key: &TarEntryKey,
+    ) -> Result<String> {
+        let sbom = sbom::detect_from_filename(entry_key.filename.as_deref());
 
-    let sbom = if let Some(sbom) = sbom
-        && let Ok(data) = String::from_utf8(data)
-    {
-        let sbom = sbom::Sbom::new(sbom, data)?;
-        Some(sbom)
-    } else {
-        None
-    };
+        let mut data = Vec::<u8>::new();
+        let digest = stream_entry_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
 
-    Ok((digest, sbom))
+        if let Some(sbom) = sbom
+            && let Some(db) = db
+            && let Ok(data) = String::from_utf8(data)
+        {
+            let sbom = sbom::Sbom::new(sbom, data)?;
+            let chksum = db.insert_sbom(&sbom).await?;
+            let strain = sbom.strain();
+            info!("Inserted sbom {strain:?}: {digest:?}");
+            self.sbom_refs.push(sbom::Ref {
+                strain,
+                chksum: chksum.clone(),
+                path: entry_key.path.clone(),
+            });
+            db.insert_task(&db::Task::new(
+                format!("sbom:{strain}:{chksum}"),
+                &db::TaskData::IndexSbom {
+                    strain: Some(strain.to_string()),
+                    chksum,
+                },
+            )?)
+            .await?;
+        }
+
+        Ok(digest)
+    }
 }
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
@@ -154,8 +193,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
     // Open archive
     let mut tar = Archive::new(reader);
-    let mut files = Vec::new();
-    let mut sbom_refs = Vec::new();
+    let mut builder = TarSummaryBuilder::default();
     {
         let mut entries = tar.entries()?;
         while let Some(entry) = entries.next().await {
@@ -164,47 +202,23 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                 continue;
             };
 
-            let path = entry.path()?;
-            let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
-            let path = path.to_string_lossy().into_owned();
+            let entry_key = TarEntryKey::new(&entry.path()?);
 
             let digest = if is_file {
-                let (digest, sbom) = stream_entry(&mut entry, filename.as_deref()).await?;
-
-                if let Some(sbom) = sbom
-                    && let Some(db) = db
-                {
-                    let chksum = db.insert_sbom(&sbom).await?;
-                    let strain = sbom.strain();
-                    info!("Inserted sbom {strain:?}: {digest:?}");
-                    sbom_refs.push(sbom::Ref {
-                        strain,
-                        chksum: chksum.clone(),
-                        path: path.clone(),
-                    });
-                    db.insert_task(&db::Task::new(
-                        format!("sbom:{strain}:{chksum}"),
-                        &db::TaskData::IndexSbom {
-                            strain: Some(strain.to_string()),
-                            chksum,
-                        },
-                    )?)
-                    .await?;
-                }
-
+                let digest = builder.stream_entry(db, &mut entry, &entry_key).await?;
                 Some(digest)
             } else {
                 None
             };
 
             let entry = Entry {
-                path: path.to_string(),
+                path: entry_key.path,
                 digest,
                 metadata,
             };
             debug!("Found entry={entry:?}");
 
-            files.push(entry);
+            builder.files.push(entry);
         }
     }
     let Ok(mut reader) = tar.into_inner() else {
@@ -224,13 +238,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
     if let Some(db) = db {
         // Insert into database
-        db.insert_artifact(&inner_digests.sha256, &files).await?;
+        db.insert_artifact(&inner_digests.sha256, &builder.files)
+            .await?;
         db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
             .await?;
         db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
             .await?;
 
-        for sbom in &sbom_refs {
+        for sbom in &builder.sbom_refs {
             db.insert_sbom_ref(&inner_digests.sha256, sbom.strain, &sbom.chksum, &sbom.path)
                 .await?;
         }
@@ -239,8 +254,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     Ok(TarSummary {
         inner_digests,
         outer_digests,
-        files,
-        sbom_refs,
+        files: builder.files,
+        sbom_refs: builder.sbom_refs,
     })
 }
 
