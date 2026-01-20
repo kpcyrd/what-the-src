@@ -8,10 +8,10 @@ use tokio_util::io::StreamReader;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 pub const READ_TIMEOUT: Duration = Duration::from_secs(60);
-// do not immediately give away who we are, version string is from Debian bookworm
-pub const USER_AGENT: &str = "curl/7.88.1";
+// do not immediately give away who we are, version string is from Debian trixie
+pub const USER_AGENT: &str = "curl/8.14.1";
 
-pub fn http_client(socks5: Option<&String>) -> Result<HttpClient> {
+pub fn http_client(socks5: Option<&str>) -> Result<HttpClient> {
     let mut http = reqwest::ClientBuilder::new();
     if let Some(socks5) = socks5 {
         http = http.proxy(reqwest::Proxy::all(socks5)?);

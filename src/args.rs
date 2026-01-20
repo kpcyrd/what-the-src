@@ -41,6 +41,7 @@ pub struct Worker {
 
 #[derive(Debug, Subcommand)]
 pub enum Plumbing {
+    Fetch(Fetch),
     IngestTar(IngestTar),
     IngestGit(IngestGit),
     IngestPacmanSnapshot(IngestPacmanSnapshot),
@@ -63,6 +64,16 @@ pub enum Plumbing {
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
+}
+
+/// Fetch a remote http URL
+#[derive(Debug, Parser)]
+pub struct Fetch {
+    /// Request through a proxy to evade rate limits
+    #[arg(long)]
+    pub socks5: Option<String>,
+    /// The URL to fetch
+    pub url: String,
 }
 
 /// Ingest a .tar into the archive

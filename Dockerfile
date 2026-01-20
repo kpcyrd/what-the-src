@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cp -v /var/cache/buildkit/target/release/what-the-src /
 
 FROM alpine:3.20
-RUN apk add libgcc libpq libbz2 xz-libs zstd-libs git
+RUN apk add ca-certificates libgcc libpq libbz2 xz-libs zstd-libs git
 # current rpm parser depends on /usr/bin/bsdtar
 RUN apk add libarchive-tools
 WORKDIR /app

@@ -229,7 +229,7 @@ impl Worker {
 
 pub async fn run(args: &args::Worker) -> Result<()> {
     let db = db::Client::create().await?;
-    let http = utils::http_client(args.socks5.as_ref())?;
+    let http = utils::http_client(args.socks5.as_deref())?;
 
     let worker = Worker {
         db: Arc::new(db),

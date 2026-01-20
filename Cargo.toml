@@ -27,7 +27,7 @@ lz4_flex = "0.12"
 num-format = "0.4.4"
 plist = "1.6.1"
 regex = "1.10.4"
-reqwest = { version = "0.12.3", default-features = false, features = ["rustls-tls-webpki-roots", "stream", "socks"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "socks"] }
 rpm = { version = "0.16", default-features = false }
 rust-embed = "8.3.0"
 serde = { version = "1.0.197", features = ["derive"] }
