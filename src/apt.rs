@@ -1,6 +1,6 @@
 use crate::errors::*;
-use apt_parser::errors::{APTError, ParseError};
 use apt_parser::ReleaseHash;
+use apt_parser::errors::{APTError, ParseError};
 use std::str;
 
 #[derive(Debug, PartialEq)]
@@ -80,18 +80,18 @@ impl SourcesIndex {
         for pkg in &self.pkgs {
             trace!("Found package in sources index: {pkg:?}");
 
-            if let Some(name) = filter_name {
-                if pkg.package != *name {
-                    trace!("Skipping due to package name mismatch");
-                    continue;
-                }
+            if let Some(name) = filter_name
+                && pkg.package != *name
+            {
+                trace!("Skipping due to package name mismatch");
+                continue;
             }
 
-            if let Some(version) = filter_version {
-                if pkg.version.as_deref() != Some(version) {
-                    trace!("Skipping due to package version mismatch");
-                    continue;
-                }
+            if let Some(version) = filter_version
+                && pkg.version.as_deref() != Some(version)
+            {
+                trace!("Skipping due to package version mismatch");
+                continue;
             }
 
             for chksum in &pkg.checksums_sha256 {

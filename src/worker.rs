@@ -98,7 +98,9 @@ impl Worker {
                 tag,
             } => {
                 let repo = normalize_archlinux_gitlab_names(&package);
-                let url = format!("https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz");
+                let url = format!(
+                    "https://gitlab.archlinux.org/archlinux/packaging/packages/{repo}/-/archive/{tag}/{repo}-{tag}.tar.gz"
+                );
 
                 info!("Downloading pacman git snapshot: {url:?}");
                 let reader = self.http.fetch(&url).await?;
@@ -151,7 +153,9 @@ impl Worker {
                         let Some(repo) = repo else {
                             return Err(Error::AlpineMissingRepo);
                         };
-                        let url = format!("https://gitlab.alpinelinux.org/alpine/aports/-/raw/{commit}/{repo}/{origin}/APKBUILD");
+                        let url = format!(
+                            "https://gitlab.alpinelinux.org/alpine/aports/-/raw/{commit}/{repo}/{origin}/APKBUILD"
+                        );
                         info!("Fetching APKBUILD: {url:?}");
                         let reader = self.http.fetch(&url).await?;
 
@@ -204,7 +208,9 @@ impl Worker {
                 package,
                 version,
             } => {
-                debug!("Void Linux: vendor={vendor:?} srcpkg={srcpkg:?} commit={commit:?} package={package:?} version={version:?}");
+                debug!(
+                    "Void Linux: vendor={vendor:?} srcpkg={srcpkg:?} commit={commit:?} package={package:?} version={version:?}"
+                );
                 let url =
                     format!("https://github.com/void-linux/void-packages/archive/{commit}.tar.gz");
 

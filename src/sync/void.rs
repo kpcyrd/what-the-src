@@ -61,7 +61,9 @@ pub async fn run(args: &args::SyncVoid) -> Result<()> {
 
             // check if package already imported
             if db.get_package(vendor, &pkgname, version).await?.is_some() {
-                debug!("Package is already imported: srcpkg={srcpkg:?} commit={commit:?} package={pkgname:?} version={version:?}");
+                debug!(
+                    "Package is already imported: srcpkg={srcpkg:?} commit={commit:?} package={pkgname:?} version={version:?}"
+                );
                 continue;
             }
 

@@ -17,11 +17,11 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
     while let Some(artifact) = stream.next().await {
         let artifact = artifact?;
 
-        if let Some(limit) = &args.limit {
-            if scheduled >= *limit {
-                info!("Reached schedule limit of {limit} items, exiting");
-                break;
-            }
+        if let Some(limit) = &args.limit
+            && scheduled >= *limit
+        {
+            info!("Reached schedule limit of {limit} items, exiting");
+            break;
         }
 
         if let Some(age) = &args.age {
@@ -70,17 +70,17 @@ pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
     while let Some(sbom) = stream.next().await {
         let sbom = sbom?;
 
-        if let Some(strain) = &args.strain {
-            if *strain != sbom.strain {
-                continue;
-            }
+        if let Some(strain) = &args.strain
+            && *strain != sbom.strain
+        {
+            continue;
         }
 
-        if let Some(limit) = &args.limit {
-            if scheduled >= *limit {
-                info!("Reached schedule limit of {limit} items, exiting");
-                break;
-            }
+        if let Some(limit) = &args.limit
+            && scheduled >= *limit
+        {
+            info!("Reached schedule limit of {limit} items, exiting");
+            break;
         }
 
         let chksum = &sbom.chksum;

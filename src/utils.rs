@@ -32,7 +32,7 @@ impl HttpClient {
     pub async fn fetch(&self, url: &str) -> Result<Box<dyn AsyncRead + Unpin>> {
         let resp = self.reqwest.get(url).send().await?.error_for_status()?;
         let stream = resp.bytes_stream();
-        let stream = StreamReader::new(stream.map_err(|e| io::Error::new(io::ErrorKind::Other, e)));
+        let stream = StreamReader::new(stream.map_err(io::Error::other));
         Ok(Box::new(stream))
     }
 }

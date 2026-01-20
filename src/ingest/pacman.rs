@@ -98,10 +98,10 @@ impl Snapshot {
             });
 
             // Skip entries that we know for sure are not urls
-            if let Some(url) = &url {
-                if !url.contains("://") {
-                    continue;
-                }
+            if let Some(url) = &url
+                && !url.contains("://")
+            {
+                continue;
             }
 
             out.push(SourceEntry {
@@ -195,10 +195,10 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         };
 
         // TODO: check if already known
-        if let Some(url) = &entry.url {
-            if let Some(task) = utils::task_for_url(url) {
-                db.insert_task(&task).await?;
-            }
+        if let Some(url) = &entry.url
+            && let Some(task) = utils::task_for_url(url)
+        {
+            db.insert_task(&task).await?;
         }
 
         let r = db::Ref {

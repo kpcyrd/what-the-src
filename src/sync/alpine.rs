@@ -97,7 +97,9 @@ pub async fn run(args: &args::SyncAlpine) -> Result<()> {
 
             // check if package already imported
             if db.get_package(vendor, &origin, &commit).await?.is_some() {
-                debug!("Package is already imported: vendor={vendor:?} origin={origin:?} commit={commit:?}");
+                debug!(
+                    "Package is already imported: vendor={vendor:?} origin={origin:?} commit={commit:?}"
+                );
                 continue;
             }
 

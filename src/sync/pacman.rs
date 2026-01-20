@@ -59,7 +59,9 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
 
         // check if package already imported
         if db.get_package(vendor, pkgbase, version).await?.is_some() {
-            debug!("Package is already imported: vendor={vendor:?} package={pkgbase:?} version={version:?}");
+            debug!(
+                "Package is already imported: vendor={vendor:?} package={pkgbase:?} version={version:?}"
+            );
             continue;
         }
 

@@ -592,7 +592,10 @@ do_install() {
         let Err(Error::YoctoPoisonedStr(err)) = err else {
             panic!("Did not get expected error: {err:?}")
         };
-        assert_eq!(err, "https://dl.google.com/go/go1.22.3.${BUILD_GOOS}-${BUILD_GOARCH}.tar.gz;name=go_${BUILD_GOTUPLE}");
+        assert_eq!(
+            err,
+            "https://dl.google.com/go/go1.22.3.${BUILD_GOOS}-${BUILD_GOARCH}.tar.gz;name=go_${BUILD_GOTUPLE}"
+        );
     }
 
     #[test]
@@ -618,11 +621,16 @@ do_install() {
         bb.assign("KMETA", "kernel-meta");
         let line = bb.tokenize(&mut r#"SRC_URI = "git://git.yoctoproject.org/linux-yocto.git;branch=${KBRANCH};name=machine;protocol=https \
                    git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=${KMETA};protocol=https""#.lines()).unwrap();
-        assert_eq!(line, &[
-            Value::Valid(String::from("SRC_URI")),
-            Value::Valid(String::from("=")),
-            Value::Valid(String::from("git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n                   git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https")),
-        ]);
+        assert_eq!(
+            line,
+            &[
+                Value::Valid(String::from("SRC_URI")),
+                Value::Valid(String::from("=")),
+                Value::Valid(String::from(
+                    "git://git.yoctoproject.org/linux-yocto.git;branch=v6.6/standard/tiny/base;name=machine;protocol=https \n                   git://git.yoctoproject.org/yocto-kernel-cache;type=kmeta;name=meta;branch=yocto-6.6;destsuffix=kernel-meta;protocol=https"
+                )),
+            ]
+        );
     }
 
     #[test]

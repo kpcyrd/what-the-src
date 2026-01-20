@@ -144,28 +144,27 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
                 let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
 
-                if let Some(sbom) = sbom {
-                    if let Ok(data) = String::from_utf8(data) {
-                        if let Some(db) = db {
-                            let sbom = sbom::Sbom::new(sbom, data)?;
-                            let chksum = db.insert_sbom(&sbom).await?;
-                            let strain = sbom.strain();
-                            info!("Inserted sbom {strain:?}: {digest:?}");
-                            sbom_refs.push(sbom::Ref {
-                                strain,
-                                chksum: chksum.clone(),
-                                path: path.clone(),
-                            });
-                            db.insert_task(&db::Task::new(
-                                format!("sbom:{strain}:{chksum}"),
-                                &db::TaskData::IndexSbom {
-                                    strain: Some(strain.to_string()),
-                                    chksum,
-                                },
-                            )?)
-                            .await?;
-                        }
-                    }
+                if let Some(sbom) = sbom
+                    && let Some(db) = db
+                    && let Ok(data) = String::from_utf8(data)
+                {
+                    let sbom = sbom::Sbom::new(sbom, data)?;
+                    let chksum = db.insert_sbom(&sbom).await?;
+                    let strain = sbom.strain();
+                    info!("Inserted sbom {strain:?}: {digest:?}");
+                    sbom_refs.push(sbom::Ref {
+                        strain,
+                        chksum: chksum.clone(),
+                        path: path.clone(),
+                    });
+                    db.insert_task(&db::Task::new(
+                        format!("sbom:{strain}:{chksum}"),
+                        &db::TaskData::IndexSbom {
+                            strain: Some(strain.to_string()),
+                            chksum,
+                        },
+                    )?)
+                    .await?;
                 }
 
                 Some(digest)

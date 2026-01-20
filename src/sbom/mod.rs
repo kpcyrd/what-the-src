@@ -156,7 +156,10 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                             db.get_ref(&chksum, yarn::VENDOR, &pkg.name, &pkg.version),
                         );
                         if has_artifact?.is_some() && has_ref?.is_some() {
-                            debug!("Skipping because known yarn reference (package={:?} version={:?} chksum={:?})", pkg.name, pkg.version, chksum);
+                            debug!(
+                                "Skipping because known yarn reference (package={:?} version={:?} chksum={:?})",
+                                pkg.name, pkg.version, chksum
+                            );
                             continue;
                         }
                     }
@@ -165,7 +168,10 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                             .get_named_ref(yarn::VENDOR, &pkg.name, &pkg.version)
                             .await?;
                         if r.is_some() {
-                            debug!("Skipping because known yarn reference (despite no checksum: package={:?} version={:?})", pkg.name, pkg.version);
+                            debug!(
+                                "Skipping because known yarn reference (despite no checksum: package={:?} version={:?})",
+                                pkg.name, pkg.version
+                            );
                             continue;
                         }
                     }

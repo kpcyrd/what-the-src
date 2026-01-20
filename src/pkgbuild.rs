@@ -58,7 +58,7 @@ pub fn parse(bytes: &[u8]) -> Result<Pkgbuild> {
                             other => {
                                 return Err(Error::InvalidPkgbuild(format!(
                                     "Unsupported word unit: {other:?}"
-                                )))
+                                )));
                             }
                         }
                     }

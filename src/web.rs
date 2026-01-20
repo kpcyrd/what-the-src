@@ -24,8 +24,8 @@ use url_escape::percent_encoding::AsciiSet;
 use warp::http::Uri;
 use warp::reject;
 use warp::{
-    http::{header, HeaderValue, StatusCode},
     Filter,
+    http::{HeaderValue, StatusCode, header},
 };
 
 const SEARCH_LIMIT: usize = 250;
@@ -960,7 +960,9 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
         );
         assert_eq!(
             search.as_deref(),
-            Some("sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370"),
+            Some(
+                "sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370"
+            ),
         );
 
         // test blake2b
@@ -969,7 +971,9 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
         );
         assert_eq!(
             search.as_deref(),
-            Some("blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533"),
+            Some(
+                "blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533"
+            ),
         );
 
         // test git
@@ -1013,7 +1017,9 @@ sha256:56d9fc4585da4f39bbc5c8ec953fb7962188fa5ed70b2dd5a19dc82df997ba5e  foo-1.0
 
     #[test]
     fn test_hash_search_detection_link() {
-        let search = detect_hash_search("https://whatsrc.org/artifact/sha256:981a75f8291020d9f6632c6160ee3651f376bdf354373bea00506a220e355134");
+        let search = detect_hash_search(
+            "https://whatsrc.org/artifact/sha256:981a75f8291020d9f6632c6160ee3651f376bdf354373bea00506a220e355134",
+        );
         assert_eq!(
             search.as_deref(),
             Some("sha256:981a75f8291020d9f6632c6160ee3651f376bdf354373bea00506a220e355134")
