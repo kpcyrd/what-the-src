@@ -121,7 +121,7 @@ pub async fn run(args: &args::SyncGuix) -> Result<()> {
                     version: package.version.to_string(),
                     filename: Some(url.to_string()),
                 };
-                info!("insert: {obj:?}");
+                debug!("insert: {obj:?}");
                 db.insert_ref(&obj).await?;
 
                 if db.resolve_artifact(&chksum).await?.is_none() {

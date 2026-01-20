@@ -224,7 +224,7 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                     version: version.to_string(),
                     filename: Some(url.to_string()),
                 };
-                info!("insert: {r:?}");
+                debug!("insert: {r:?}");
                 db.insert_ref(&r).await?;
 
                 if already_imported {

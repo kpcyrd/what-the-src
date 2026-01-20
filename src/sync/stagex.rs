@@ -171,7 +171,7 @@ pub async fn run(args: &args::SyncStagex) -> Result<()> {
                 continue;
             }
 
-            info!("insert: {obj:?}");
+            debug!("insert: {obj:?}");
             db.insert_ref(obj).await?;
 
             if db.resolve_artifact(chksum).await?.is_none() {
