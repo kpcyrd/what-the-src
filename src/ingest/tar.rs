@@ -92,6 +92,50 @@ pub struct TarSummary {
     pub sbom_refs: Vec<sbom::Ref>,
 }
 
+async fn stream_entry_content<R: AsyncRead + Unpin>(
+    mut entry: R,
+    mut data: Option<&mut Vec<u8>>,
+) -> Result<String> {
+    let mut buf = [0; 4096];
+    let mut sha256 = Sha256::new();
+
+    loop {
+        let n = entry.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        let buf = &buf[..n];
+        sha256.update(buf);
+        if let Some(data) = &mut data {
+            data.extend(buf);
+        }
+    }
+
+    let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
+    Ok(digest)
+}
+
+async fn stream_entry<R: AsyncRead + Unpin>(
+    mut entry: R,
+    filename: Option<&str>,
+) -> Result<(String, Option<sbom::Sbom>)> {
+    let sbom = sbom::detect_from_filename(filename);
+
+    let mut data = Vec::<u8>::new();
+    let digest = stream_entry_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
+
+    let sbom = if let Some(sbom) = sbom
+        && let Ok(data) = String::from_utf8(data)
+    {
+        let sbom = sbom::Sbom::new(sbom, data)?;
+        Some(sbom)
+    } else {
+        None
+    };
+
+    Ok((digest, sbom))
+}
+
 pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Option<&db::Client>,
     reader: R,
@@ -125,30 +169,11 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             let path = path.to_string_lossy().into_owned();
 
             let digest = if is_file {
-                let sbom = sbom::detect_from_filename(filename.as_deref());
-
-                let mut buf = [0; 4096];
-                let mut data = Vec::<u8>::new();
-                let mut sha256 = Sha256::new();
-                loop {
-                    let n = entry.read(&mut buf).await?;
-                    if n == 0 {
-                        break;
-                    }
-                    let buf = &buf[..n];
-                    sha256.update(buf);
-                    if sbom.is_some() {
-                        data.extend(buf);
-                    }
-                }
-
-                let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
+                let (digest, sbom) = stream_entry(&mut entry, filename.as_deref()).await?;
 
                 if let Some(sbom) = sbom
                     && let Some(db) = db
-                    && let Ok(data) = String::from_utf8(data)
                 {
-                    let sbom = sbom::Sbom::new(sbom, data)?;
                     let chksum = db.insert_sbom(&sbom).await?;
                     let strain = sbom.strain();
                     info!("Inserted sbom {strain:?}: {digest:?}");
