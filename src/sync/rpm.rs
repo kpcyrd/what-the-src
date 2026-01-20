@@ -28,12 +28,15 @@ pub struct Package {
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Version {
+    #[serde(rename = "@ver")]
     ver: String,
+    #[serde(rename = "@rel")]
     rel: String,
 }
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Location {
+    #[serde(rename = "@href")]
     href: String,
 }
 
@@ -63,7 +66,7 @@ impl RepoMd {
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct Data {
-    #[serde(rename = "type")]
+    #[serde(rename = "@type")]
     data_type: String,
     location: Location,
 }

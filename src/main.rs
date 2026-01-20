@@ -40,6 +40,14 @@ async fn main() -> Result<()> {
     match args.subcommand {
         SubCommand::Web(args) => web::run(&args).await,
         SubCommand::Worker(args) => worker::run(&args).await,
+        SubCommand::Plumbing(Plumbing::Fetch(args)) => {
+            let mut reader = utils::http_client(args.socks5.as_deref())?
+                .fetch(&args.url)
+                .await?;
+            let mut stdout = io::stdout();
+            io::copy(&mut reader, &mut stdout).await?;
+            Ok(())
+        }
         SubCommand::Plumbing(Plumbing::IngestTar(args)) => ingest::tar::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestGit(args)) => ingest::git::run(&args).await,
         SubCommand::Plumbing(Plumbing::IngestPacmanSnapshot(args)) => {
