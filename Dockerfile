@@ -1,6 +1,6 @@
-FROM rust:alpine3.20
+FROM rust:alpine3.23
 ENV RUSTFLAGS="-C target-feature=-crt-static"
-RUN apk add musl-dev postgresql-dev bzip2-dev xz-dev zstd-dev
+RUN apk add ca-certificates musl-dev postgresql-dev xz-dev zstd-dev
 WORKDIR /app
 COPY . .
 RUN --mount=type=cache,target=/var/cache/buildkit \
@@ -9,8 +9,8 @@ RUN --mount=type=cache,target=/var/cache/buildkit \
     cargo build --release --locked && \
     cp -v /var/cache/buildkit/target/release/what-the-src /
 
-FROM alpine:3.20
-RUN apk add ca-certificates libgcc libpq libbz2 xz-libs zstd-libs git
+FROM alpine:3.23
+RUN apk add ca-certificates libgcc libpq xz-libs zstd-libs git
 # current rpm parser depends on /usr/bin/bsdtar
 RUN apk add libarchive-tools
 WORKDIR /app
