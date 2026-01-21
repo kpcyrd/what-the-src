@@ -157,7 +157,7 @@ async fn stream_content<R: AsyncRead + Unpin>(
     Ok(digest)
 }
 
-/// Keep internal state while processing a tar archive and it's entries. This
+/// Keep internal state while processing a tar archive and its entries. This
 /// struct is then eventually finalized into a `TarSummary`.
 struct TarSummaryBuilder<'a> {
     db: Option<&'a db::Client>,
