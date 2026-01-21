@@ -1,3 +1,4 @@
+pub mod adapters;
 pub mod alias;
 pub mod apkbuild;
 pub mod apt;
