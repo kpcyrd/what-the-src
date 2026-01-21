@@ -8,6 +8,7 @@ use digest::Digest;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{self, AsyncRead, AsyncReadExt};
 use tokio_tar::{Archive, EntryType};
@@ -92,6 +93,182 @@ pub struct TarSummary {
     pub sbom_refs: Vec<sbom::Ref>,
 }
 
+impl TarSummary {
+    async fn insert_db(&self, db: &db::Client, outer_label: &'static str) -> Result<()> {
+        db.insert_artifact(&self.inner_digests.sha256, &self.files)
+            .await?;
+        db.register_chksums_aliases(&self.inner_digests, &self.inner_digests.sha256, "tar")
+            .await?;
+        db.register_chksums_aliases(&self.outer_digests, &self.inner_digests.sha256, outer_label)
+            .await?;
+
+        for sbom in &self.sbom_refs {
+            db.insert_sbom_ref(
+                &self.inner_digests.sha256,
+                sbom.strain,
+                &sbom.chksum,
+                &sbom.path,
+            )
+            .await?;
+        }
+
+        Ok(())
+    }
+}
+
+/// Encapsulates the normalized path and optional filename extracted from a tar
+/// entry, used as the processed key for handling entries and driving SBOM
+/// detection during tar ingest.
+struct TarEntryKey {
+    path: String,
+    filename: Option<String>,
+}
+
+impl TarEntryKey {
+    fn new(path: &Path) -> Self {
+        let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
+        let path = path.to_string_lossy().into_owned();
+        Self { path, filename }
+    }
+}
+
+/// Stream an `AsyncRead` and calculate a SHA256 hash (`sha256:abcd...`).
+/// Optionally, collect the data into a vector for further processing.
+async fn stream_content<R: AsyncRead + Unpin>(
+    mut entry: R,
+    mut data: Option<&mut Vec<u8>>,
+) -> Result<String> {
+    let mut buf = [0; 4096];
+    let mut sha256 = Sha256::new();
+
+    loop {
+        let n = entry.read(&mut buf).await?;
+        if n == 0 {
+            break;
+        }
+        let buf = &buf[..n];
+        sha256.update(buf);
+        if let Some(data) = &mut data {
+            data.extend(buf);
+        }
+    }
+
+    let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
+    Ok(digest)
+}
+
+/// Keep internal state while processing a tar archive and its entries. This
+/// struct is then eventually finalized into a `TarSummary`.
+struct TarSummaryBuilder<'a> {
+    db: Option<&'a db::Client>,
+    files: Vec<Entry>,
+    sbom_refs: Vec<sbom::Ref>,
+}
+
+impl<'a> TarSummaryBuilder<'a> {
+    fn new(db: Option<&'a db::Client>) -> Self {
+        Self {
+            db,
+            files: Vec::new(),
+            sbom_refs: Vec::new(),
+        }
+    }
+
+    async fn stream_entry_content<R: AsyncRead + Unpin>(
+        &mut self,
+        mut entry: R,
+        entry_key: &TarEntryKey,
+    ) -> Result<String> {
+        let sbom = sbom::detect_from_filename(entry_key.filename.as_deref());
+
+        let mut data = Vec::<u8>::new();
+        let digest = stream_content(&mut entry, sbom.is_some().then_some(&mut data)).await?;
+
+        if let Some(sbom) = sbom
+            && let Some(db) = &self.db
+            && let Ok(data) = String::from_utf8(data)
+        {
+            let sbom = sbom::Sbom::new(sbom, data)?;
+            let chksum = db.insert_sbom(&sbom).await?;
+            let strain = sbom.strain();
+            info!("Inserted sbom {strain:?}: {digest:?}");
+            self.sbom_refs.push(sbom::Ref {
+                strain,
+                chksum: chksum.clone(),
+                path: entry_key.path.clone(),
+            });
+            db.insert_task(&db::Task::new(
+                format!("sbom:{strain}:{chksum}"),
+                &db::TaskData::IndexSbom {
+                    strain: Some(strain.to_string()),
+                    chksum,
+                },
+            )?)
+            .await?;
+        }
+
+        Ok(digest)
+    }
+
+    async fn stream_entry<R: AsyncRead + Unpin>(
+        &mut self,
+        mut entry: tokio_tar::Entry<R>,
+    ) -> Result<()> {
+        let Some((metadata, is_file)) = Metadata::from_tar_header(&entry)? else {
+            return Ok(());
+        };
+
+        let entry_key = TarEntryKey::new(&entry.path()?);
+
+        let digest = if is_file {
+            let digest = self.stream_entry_content(&mut entry, &entry_key).await?;
+            Some(digest)
+        } else {
+            None
+        };
+
+        let entry = Entry {
+            path: entry_key.path,
+            digest,
+            metadata,
+        };
+        debug!("Found entry={entry:?}");
+
+        self.files.push(entry);
+        Ok(())
+    }
+
+    async fn stream_archive<R: AsyncRead + Unpin>(&mut self, reader: R) -> Result<R> {
+        // Open and read archive
+        let mut tar = Archive::new(reader);
+        {
+            let mut entries = tar.entries()?;
+            while let Some(entry) = entries.next().await {
+                let entry = entry?;
+                self.stream_entry(entry).await?;
+            }
+        }
+        let Ok(mut reader) = tar.into_inner() else {
+            panic!("can't get hasher from tar reader")
+        };
+
+        // Consume any remaining data
+        io::copy(&mut reader, &mut io::sink()).await?;
+
+        // Return the finished reader
+        Ok(reader)
+    }
+
+    fn finish(self, inner_digests: Checksums, outer_digests: Checksums) -> TarSummary {
+        TarSummary {
+            inner_digests,
+            outer_digests,
+            files: self.files,
+            sbom_refs: self.sbom_refs,
+        }
+    }
+}
+
 pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Option<&db::Client>,
     reader: R,
@@ -108,86 +285,9 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     };
     let reader = Hasher::new(reader);
 
-    // Open archive
-    let mut tar = Archive::new(reader);
-    let mut files = Vec::new();
-    let mut sbom_refs = Vec::new();
-    {
-        let mut entries = tar.entries()?;
-        while let Some(entry) = entries.next().await {
-            let mut entry = entry?;
-            let Some((metadata, is_file)) = Metadata::from_tar_header(&entry)? else {
-                continue;
-            };
-
-            let path = entry.path()?;
-            let filename = path.file_name().and_then(|f| f.to_str()).map(String::from);
-            let path = path.to_string_lossy().into_owned();
-
-            let digest = if is_file {
-                let sbom = sbom::detect_from_filename(filename.as_deref());
-
-                let mut buf = [0; 4096];
-                let mut data = Vec::<u8>::new();
-                let mut sha256 = Sha256::new();
-                loop {
-                    let n = entry.read(&mut buf).await?;
-                    if n == 0 {
-                        break;
-                    }
-                    let buf = &buf[..n];
-                    sha256.update(buf);
-                    if sbom.is_some() {
-                        data.extend(buf);
-                    }
-                }
-
-                let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
-
-                if let Some(sbom) = sbom
-                    && let Some(db) = db
-                    && let Ok(data) = String::from_utf8(data)
-                {
-                    let sbom = sbom::Sbom::new(sbom, data)?;
-                    let chksum = db.insert_sbom(&sbom).await?;
-                    let strain = sbom.strain();
-                    info!("Inserted sbom {strain:?}: {digest:?}");
-                    sbom_refs.push(sbom::Ref {
-                        strain,
-                        chksum: chksum.clone(),
-                        path: path.clone(),
-                    });
-                    db.insert_task(&db::Task::new(
-                        format!("sbom:{strain}:{chksum}"),
-                        &db::TaskData::IndexSbom {
-                            strain: Some(strain.to_string()),
-                            chksum,
-                        },
-                    )?)
-                    .await?;
-                }
-
-                Some(digest)
-            } else {
-                None
-            };
-
-            let entry = Entry {
-                path: path.to_string(),
-                digest,
-                metadata,
-            };
-            debug!("Found entry={entry:?}");
-
-            files.push(entry);
-        }
-    }
-    let Ok(mut reader) = tar.into_inner() else {
-        panic!("can't get hasher from tar reader")
-    };
-
-    // Consume any remaining data
-    io::copy(&mut reader, &mut io::sink()).await?;
+    // Open and read archive
+    let mut builder = TarSummaryBuilder::new(db);
+    let reader = builder.stream_archive(reader).await?;
 
     // Determine hashes
     let (reader, inner_digests) = reader.digests();
@@ -197,26 +297,12 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let (_stream, outer_digests) = reader.digests();
     info!("Found digests for outer compressed tar: {outer_digests:?}");
 
+    // Finalize summary, insert into db
+    let summary = builder.finish(inner_digests, outer_digests);
     if let Some(db) = db {
-        // Insert into database
-        db.insert_artifact(&inner_digests.sha256, &files).await?;
-        db.register_chksums_aliases(&inner_digests, &inner_digests.sha256, "tar")
-            .await?;
-        db.register_chksums_aliases(&outer_digests, &inner_digests.sha256, outer_label)
-            .await?;
-
-        for sbom in &sbom_refs {
-            db.insert_sbom_ref(&inner_digests.sha256, sbom.strain, &sbom.chksum, &sbom.path)
-                .await?;
-        }
+        summary.insert_db(db, outer_label).await?;
     }
-
-    Ok(TarSummary {
-        inner_digests,
-        outer_digests,
-        files,
-        sbom_refs,
-    })
+    Ok(summary)
 }
 
 pub async fn run(args: &args::IngestTar) -> Result<()> {
