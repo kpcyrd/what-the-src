@@ -116,7 +116,9 @@ impl TarSummary {
     }
 }
 
-/// The processed entry key of a tar archive
+/// Encapsulates the normalized path and optional filename extracted from a tar
+/// entry, used as the processed key for handling entries and driving SBOM
+/// detection during tar ingest.
 struct TarEntryKey {
     path: String,
     filename: Option<String>,
@@ -130,6 +132,8 @@ impl TarEntryKey {
     }
 }
 
+/// Stream an `AsyncRead` and calculate a SHA256 hash (`sha256:abcd...`).
+/// Optionally, collect the data into a vector for further processing.
 async fn stream_content<R: AsyncRead + Unpin>(
     mut entry: R,
     mut data: Option<&mut Vec<u8>>,
@@ -153,6 +157,8 @@ async fn stream_content<R: AsyncRead + Unpin>(
     Ok(digest)
 }
 
+/// Keep internal state while processing a tar archive and it's entries. This
+/// struct is then eventually finalized into a `TarSummary`.
 struct TarSummaryBuilder<'a> {
     db: Option<&'a db::Client>,
     files: Vec<Entry>,
