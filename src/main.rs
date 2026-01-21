@@ -12,7 +12,6 @@ pub mod pkgbuild;
 pub mod reindex;
 pub mod sbom;
 pub mod sync;
-pub mod tee;
 pub mod utils;
 pub mod void_template;
 pub mod web;
