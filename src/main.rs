@@ -28,7 +28,7 @@ use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
 use std::path::Path;
-use tokio::fs::{self, File};
+use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt, ReadBuf};
 
 #[tokio::main]
@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
             let creds = args.s3.creds();
             let bucket = args.s3.bucket()?;
             let now = Utc::now();
-            let url = s3::put(&creds, &bucket, args.key.split('/'), &now)?;
+            let url = s3::sign_put_url(&creds, &bucket, args.key.split('/'), &now)?;
             println!("{url}");
             Ok(())
         }
@@ -119,16 +119,13 @@ async fn main() -> Result<()> {
             info!("Computed hash: {}", chksums.sha256);
 
             // Finalize compression
-            let mut writer = writer.finish_rewind().await?;
+            let writer = writer.finish_rewind().await?;
 
-            let mut buf = Vec::new();
-            writer.read_to_end(&mut buf).await?;
-            info!("Read {} compressed bytes", buf.len());
+            // Upload data
+            let http = utils::http_client(None)?;
+            s3::upload(&http, &creds, &bucket, &chksums, writer).await?;
 
-            fs::write("dump.bin", &buf).await?;
-
-            //
-            todo!()
+            Ok(())
         }
     }
 }

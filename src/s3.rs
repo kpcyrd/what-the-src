@@ -1,10 +1,13 @@
+use crate::chksums::Checksums;
 use crate::errors::*;
+use crate::utils::HttpClient;
 use async_compression::tokio::write::ZstdEncoder;
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use s3_presign::Credentials;
 use std::pin::Pin;
-use tokio::io::{AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
+use std::time::Instant;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 
 const EXPIRATION: u64 = 900; // 15 minutes
 const METHOD: &str = "PUT";
@@ -41,7 +44,12 @@ impl Bucket {
     }
 }
 
-pub fn put<I>(creds: &Credentials, bucket: &Bucket, key: I, now: &DateTime<Utc>) -> Result<String>
+pub fn sign_put_url<I>(
+    creds: &Credentials,
+    bucket: &Bucket,
+    key: I,
+    now: &DateTime<Utc>,
+) -> Result<String>
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
@@ -108,6 +116,29 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for FsBuffer<W> {
     }
 }
 
+pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
+    http: &HttpClient,
+    creds: &Credentials,
+    bucket: &Bucket,
+    chksums: &Checksums,
+    mut reader: R,
+) -> Result<()> {
+    let mut buf = Vec::new();
+    reader.read_to_end(&mut buf).await?;
+    info!("Read {} compressed bytes", buf.len());
+
+    let now = Utc::now();
+    let url = sign_put_url(creds, bucket, [&chksums.sha256], &now)?;
+
+    info!("Starting s3 upload for {}", &chksums.sha256);
+    let start = Instant::now();
+    http.put(&url, reader).await?;
+    let duration = start.elapsed();
+    info!("Successfully uploaded in {:.2?}s", duration.as_secs_f64());
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,7 +166,8 @@ mod tests {
             host: Url::parse("https://s3.eu-south-1.wasabisys.com").unwrap(),
         };
         let now = DateTime::parse_from_rfc3339("2026-01-22T13:37:00+01:00").unwrap();
-        let url = put(&creds, &bucket, ["path", "to", "object.txt"], &now.to_utc()).unwrap();
+        let url =
+            sign_put_url(&creds, &bucket, ["path", "to", "object.txt"], &now.to_utc()).unwrap();
         assert_eq!(
             url.as_str(),
             "https://s3.eu-south-1.wasabisys.com/my-bucket/path/to/object.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=abc%2F20260122%2Feu-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260122T123700Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=7d151ccbcb19938b7e37d01c08f343e3acdcfe9bb976daa3590d867bd31e11f7"

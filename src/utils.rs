@@ -1,10 +1,11 @@
 use crate::db::{Task, TaskData};
 use crate::errors::*;
 use futures::TryStreamExt;
+use reqwest::Body;
 use std::time::Duration;
 use tokio::fs;
 use tokio::io::{self, AsyncRead};
-use tokio_util::io::StreamReader;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 pub const READ_TIMEOUT: Duration = Duration::from_secs(60);
@@ -34,6 +35,22 @@ impl HttpClient {
         let stream = resp.bytes_stream();
         let stream = StreamReader::new(stream.map_err(io::Error::other));
         Ok(Box::new(stream))
+    }
+
+    pub async fn put<R: AsyncRead + Unpin + Send + 'static>(
+        &self,
+        url: &str,
+        reader: R,
+    ) -> Result<()> {
+        let stream = ReaderStream::new(reader);
+        let body = Body::wrap_stream(stream);
+        self.reqwest
+            .put(url)
+            .body(body)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
     }
 }
 
