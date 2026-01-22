@@ -10,6 +10,7 @@ pub mod errors;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod reindex;
+pub mod s3;
 pub mod sbom;
 pub mod sync;
 pub mod utils;
@@ -20,8 +21,11 @@ pub mod yocto;
 
 use crate::args::{Args, Plumbing, SubCommand};
 use crate::errors::*;
+use crate::s3::Bucket;
+use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
+use s3_presign::Credentials;
 use tokio::io::{self, AsyncReadExt};
 
 #[tokio::main]
@@ -83,5 +87,17 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexUrl(args)) => reindex::run_url(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexSbom(args)) => reindex::run_sbom(&args).await,
+        SubCommand::Plumbing(Plumbing::S3Presign(args)) => {
+            let creds = Credentials::new(&args.access_key, &args.secret_key, None);
+            let bucket = Bucket {
+                region: args.region,
+                bucket: args.bucket,
+                host: args.host.parse()?,
+            };
+            let now = Utc::now();
+            let url = s3::put(&creds, &bucket, args.key.split('/'), &now)?;
+            println!("{url}");
+            Ok(())
+        }
     }
 }

@@ -64,6 +64,7 @@ pub enum Plumbing {
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
+    S3Presign(S3Presign),
 }
 
 /// Fetch a remote http URL
@@ -323,4 +324,20 @@ pub struct ReindexSbom {
     /// Upper limit of tasks to schedule
     #[arg(long)]
     pub limit: Option<usize>,
+}
+
+/// Compute an S3 signature
+#[derive(Debug, Parser)]
+pub struct S3Presign {
+    #[arg(long)]
+    pub access_key: String,
+    #[arg(long)]
+    pub secret_key: String,
+    #[arg(long, default_value = "https://s3.eu-south-1.wasabisys.com")]
+    pub host: String,
+    #[arg(long, default_value = "eu-south-1")]
+    pub region: String,
+    #[arg(long)]
+    pub bucket: String,
+    pub key: String,
 }

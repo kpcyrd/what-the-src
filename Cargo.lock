@@ -310,7 +310,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fac4744fb15ae8337dc853fee7fb3f4e48c0fbaa23d0afe49c447b4fab126118"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -2543,6 +2545,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a50f4cf475b65d88e057964e0e9bb1f0aa9bbb2036dc65c64596b42932536984"
 
 [[package]]
+name = "s3-presign"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87dd93104cb3e5cff33676215f1ea9296bd524d2b783cbaf24422955d6b50dd1"
+dependencies = [
+ "chrono",
+ "hmac",
+ "percent-encoding",
+ "sha2",
+ "url",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3675,6 +3690,7 @@ dependencies = [
  "async-compression",
  "async-stream",
  "blake2",
+ "chrono",
  "clap",
  "data-encoding",
  "diffy-fork-filenames",
@@ -3695,6 +3711,7 @@ dependencies = [
  "reqwest",
  "rpm",
  "rust-embed",
+ "s3-presign",
  "serde",
  "serde-xml-rs",
  "serde_json",
@@ -3707,6 +3724,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml",
+ "url",
  "url-escape",
  "warp",
  "warp-embed",
