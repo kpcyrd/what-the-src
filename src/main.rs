@@ -33,6 +33,8 @@ use tokio::io::{self, AsyncReadExt, ReadBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
     let args = Args::parse();
     let log_level = match args.verbose {
         0 => "what_the_src=info",
@@ -42,8 +44,6 @@ async fn main() -> Result<()> {
         _ => "trace",
     };
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
-
-    dotenvy::dotenv().ok();
 
     match args.subcommand {
         SubCommand::Web(args) => web::run(&args).await,
