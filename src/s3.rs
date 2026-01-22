@@ -14,6 +14,9 @@ const METHOD: &str = "PUT";
 const UNSIGNED_PAYLOAD: &str = "UNSIGNED-PAYLOAD";
 const SERVICE: &str = "s3";
 
+const SHARD_LEVEL1: usize = 9;
+const SHARD_LEVEL2: usize = 2;
+
 #[derive(Debug, Clone)]
 pub struct Bucket {
     pub region: String,
@@ -42,6 +45,16 @@ impl Bucket {
 
         Ok(url)
     }
+}
+
+fn shard_key(key: &str) -> String {
+    let Some((level1, key)) = key.split_at_checked(SHARD_LEVEL1) else {
+        return format!("{key}");
+    };
+    let Some((level2, key)) = key.split_at_checked(SHARD_LEVEL2) else {
+        return format!("{level1}/{key}");
+    };
+    format!("{level1}/{level2}/{key}")
 }
 
 pub fn sign_put_url<I>(
@@ -121,20 +134,21 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
     creds: &Credentials,
     bucket: &Bucket,
     chksums: &Checksums,
-    mut reader: R,
+    reader: R,
 ) -> Result<()> {
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf).await?;
-    info!("Read {} compressed bytes", buf.len());
+    let key = shard_key(&chksums.sha256);
 
     let now = Utc::now();
-    let url = sign_put_url(creds, bucket, [&chksums.sha256], &now)?;
+    let url = sign_put_url(creds, bucket, key.split('/'), &now)?;
 
-    info!("Starting s3 upload for {}", &chksums.sha256);
+    info!("Starting s3 upload for {key}");
     let start = Instant::now();
     http.put(&url, reader).await?;
     let duration = start.elapsed();
-    info!("Successfully uploaded in {:.2?}s", duration.as_secs_f64());
+    info!(
+        "Successfully uploaded {key} in {:.2?}s",
+        duration.as_secs_f64()
+    );
 
     Ok(())
 }
@@ -142,6 +156,30 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sharded_key() {
+        let key = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        let sharded = shard_key(key);
+        assert_eq!(
+            sharded,
+            "sha256:e3/b0/c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        );
+    }
+
+    #[test]
+    fn test_sharded_key_short1() {
+        let key_level1 = "sha256:e";
+        let sharded = shard_key(key_level1);
+        assert_eq!(sharded, "sha256:e");
+    }
+
+    #[test]
+    fn test_sharded_key_short2() {
+        let key_level1 = "sha256:e3b";
+        let sharded = shard_key(key_level1);
+        assert_eq!(sharded, "sha256:e3/b");
+    }
 
     #[test]
     fn test_bucket_url() {
