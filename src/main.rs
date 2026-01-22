@@ -19,14 +19,17 @@ pub mod web;
 pub mod worker;
 pub mod yocto;
 
+use crate::adapters::tee::{self, TeeStream};
 use crate::args::{Args, Plumbing, SubCommand};
+use crate::chksums::Hasher;
 use crate::errors::*;
 use async_tempfile::TempFile;
 use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
 use std::path::Path;
-use tokio::io::{self, AsyncReadExt};
+use tokio::fs::{self, File};
+use tokio::io::{self, AsyncReadExt, ReadBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -99,7 +102,30 @@ async fn main() -> Result<()> {
             let creds = args.s3.creds();
             let bucket = args.s3.bucket()?;
 
-            let file = TempFile::new_in(Path::new(&args.tmp.path)).await?;
+            let reader = File::open(args.file).await?;
+            let reader = Hasher::new(reader);
+
+            let writer = TempFile::new_in(Path::new(&args.tmp.path)).await?;
+            let writer = s3::FsBuffer::new(writer);
+
+            let mut buf = tee::buf();
+            let mut stream = TeeStream::new(reader, writer, ReadBuf::uninit(&mut buf));
+
+            let n = io::copy(&mut stream, &mut io::sink()).await?;
+            info!("Streamed {n} bytes");
+
+            let (reader, writer) = stream.into_inner();
+            let (_file, chksums) = reader.digests();
+            info!("Computed hash: {}", chksums.sha256);
+
+            // Finalize compression
+            let mut writer = writer.finish_rewind().await?;
+
+            let mut buf = Vec::new();
+            writer.read_to_end(&mut buf).await?;
+            info!("Read {} compressed bytes", buf.len());
+
+            fs::write("dump.bin", &buf).await?;
 
             //
             todo!()

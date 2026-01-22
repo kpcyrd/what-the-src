@@ -1,7 +1,10 @@
 use crate::errors::*;
+use async_compression::tokio::write::ZstdEncoder;
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use s3_presign::Credentials;
+use std::pin::Pin;
+use tokio::io::{AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 
 const EXPIRATION: u64 = 900; // 15 minutes
 const METHOD: &str = "PUT";
@@ -61,6 +64,48 @@ where
     };
 
     Ok(url)
+}
+
+pub struct FsBuffer<W: AsyncWrite> {
+    writer: ZstdEncoder<W>,
+}
+
+impl<W: AsyncWrite + AsyncSeek + Unpin> FsBuffer<W> {
+    pub fn new(writer: W) -> Self {
+        let writer = ZstdEncoder::new(writer);
+        Self { writer }
+    }
+
+    pub async fn finish_rewind(mut self) -> Result<W> {
+        self.writer.shutdown().await?;
+        let mut writer = self.writer.into_inner();
+        writer.rewind().await?;
+        Ok(writer)
+    }
+}
+
+impl<W: AsyncWrite + Unpin> AsyncWrite for FsBuffer<W> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        Pin::new(&mut self.writer).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut self.writer).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut self.writer).poll_shutdown(cx)
+    }
 }
 
 #[cfg(test)]

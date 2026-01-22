@@ -349,7 +349,6 @@ pub struct S3 {
     pub region: String,
     #[arg(long)]
     pub bucket: String,
-    pub key: String,
 }
 
 impl S3 {
