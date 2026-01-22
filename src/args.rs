@@ -35,8 +35,8 @@ pub struct Worker {
     #[arg(long)]
     pub socks5: Option<String>,
     /// Path to use for temporary git clone operations
-    #[arg(long, env = "WHATSRC_GIT_TMP")]
-    pub git_tmp: String,
+    #[arg(long, env = "WHATSRC_FS_TMP")]
+    pub fs_tmp: String,
 }
 
 #[derive(Debug, Subcommand)]

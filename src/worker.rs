@@ -29,7 +29,7 @@ fn normalize_archlinux_gitlab_names(package: &str) -> String {
 pub struct Worker {
     db: Arc<db::Client>,
     http: utils::HttpClient,
-    git_tmp: String,
+    fs_tmp: String,
 }
 
 impl Worker {
@@ -185,7 +185,7 @@ impl Worker {
             }
             TaskData::GitSnapshot { url } => {
                 let git = url.parse::<ingest::git::GitUrl>()?;
-                ingest::git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
+                ingest::git::take_snapshot(&self.db, &git, &self.fs_tmp).await?;
             }
             TaskData::IndexSbom { strain, chksum } => {
                 // Support old sbom task format
@@ -240,7 +240,7 @@ pub async fn run(args: &args::Worker) -> Result<()> {
     let worker = Worker {
         db: Arc::new(db),
         http,
-        git_tmp: args.git_tmp.to_string(),
+        fs_tmp: args.fs_tmp.to_string(),
     };
 
     loop {

@@ -54,7 +54,12 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
     let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
     let mut lock = RwLock::new(dir.into_std().await);
-    let _lock = lock.write();
+    // The `.write()` function can return an error if interrupted, so we loop until we get the lock
+    let lock = loop {
+        if let Ok(lock) = lock.write() {
+            break lock;
+        }
+    };
     debug!("Acquired lock");
 
     let reference = if let Some(tag) = &git.tag {
@@ -167,6 +172,9 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         "git-archive",
     )
     .await?;
+
+    // Explicitly keep the lock held until here
+    drop(lock);
 
     Ok(())
 }
