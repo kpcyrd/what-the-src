@@ -113,10 +113,7 @@ mod tests {
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             if self.data.len() >= self.fail_after {
-                Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "intentional failure",
-                )))
+                Poll::Ready(Err(io::Error::other("intentional failure")))
             } else {
                 let to_write = (self.fail_after - self.data.len()).min(buf.len());
                 self.data.extend_from_slice(&buf[..to_write]);

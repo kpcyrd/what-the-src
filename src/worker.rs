@@ -240,7 +240,7 @@ pub async fn run(args: &args::Worker) -> Result<()> {
     let worker = Worker {
         db: Arc::new(db),
         http,
-        fs_tmp: args.fs_tmp.to_string(),
+        fs_tmp: args.tmp.path.to_string(),
     };
 
     loop {

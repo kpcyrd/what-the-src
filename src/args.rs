@@ -1,6 +1,10 @@
+use crate::errors::*;
 use crate::ingest;
+use crate::s3::Bucket;
 use clap::{ArgAction, Parser, Subcommand};
+use s3_presign::Credentials;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -28,15 +32,21 @@ pub struct Web {
     pub bind_addr: SocketAddr,
 }
 
+#[derive(Debug, Parser)]
+pub struct Temp {
+    /// Path to use for temporary git clone operations
+    #[arg(long = "fs-tmp", env = "WHATSRC_FS_TMP")]
+    pub path: String,
+}
+
 /// Run worker for background jobs
 #[derive(Debug, Parser)]
 pub struct Worker {
+    #[command(flatten)]
+    pub tmp: Temp,
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
-    /// Path to use for temporary git clone operations
-    #[arg(long, env = "WHATSRC_FS_TMP")]
-    pub fs_tmp: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -65,6 +75,7 @@ pub enum Plumbing {
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
     S3Presign(S3Presign),
+    Upload(Upload),
 }
 
 /// Fetch a remote http URL
@@ -326,12 +337,11 @@ pub struct ReindexSbom {
     pub limit: Option<usize>,
 }
 
-/// Compute an S3 signature
 #[derive(Debug, Parser)]
-pub struct S3Presign {
-    #[arg(long)]
+pub struct S3 {
+    #[arg(long, env = "WHATSRC_S3_ACCESS_KEY")]
     pub access_key: String,
-    #[arg(long)]
+    #[arg(long, env = "WHATSRC_S3_SECRET_KEY")]
     pub secret_key: String,
     #[arg(long, default_value = "https://s3.eu-south-1.wasabisys.com")]
     pub host: String,
@@ -340,4 +350,39 @@ pub struct S3Presign {
     #[arg(long)]
     pub bucket: String,
     pub key: String,
+}
+
+impl S3 {
+    pub fn creds(&self) -> Credentials {
+        Credentials::new(&self.access_key, &self.secret_key, None)
+    }
+
+    pub fn bucket(&self) -> Result<Bucket> {
+        let bucket = Bucket {
+            region: self.region.clone(),
+            bucket: self.bucket.clone(),
+            host: self.host.parse()?,
+        };
+        Ok(bucket)
+    }
+}
+
+/// Compute an S3 signature
+#[derive(Debug, Parser)]
+pub struct S3Presign {
+    #[command(flatten)]
+    pub s3: S3,
+    /// The object key to write to
+    pub key: String,
+}
+
+/// Upload to content-addressed S3 storage
+#[derive(Debug, Parser)]
+pub struct Upload {
+    #[command(flatten)]
+    pub s3: S3,
+    #[command(flatten)]
+    pub tmp: Temp,
+    /// The file to upload
+    pub file: PathBuf,
 }

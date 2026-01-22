@@ -17,6 +17,8 @@ pub enum Error {
     #[error(transparent)]
     RenderError(#[from] handlebars::RenderError),
     #[error(transparent)]
+    Tempfile(#[from] async_tempfile::Error),
+    #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Xml(#[from] serde_xml_rs::Error),
