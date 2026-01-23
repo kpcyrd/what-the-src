@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
             let creds = args.s3.creds();
             let bucket = args.s3.bucket()?;
             let now = Utc::now();
-            let url = s3::sign_put_url(&creds, &bucket, args.key.split('/'), &now)?;
+            let url = s3::sign_put_url(&creds, &bucket, &args.key, &now)?;
             println!("{url}");
             Ok(())
         }

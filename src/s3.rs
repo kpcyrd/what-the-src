@@ -5,6 +5,7 @@ use async_compression::{Level, tokio::write::ZstdEncoder};
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use s3_presign::Credentials;
+use std::iter;
 use std::pin::Pin;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
@@ -25,24 +26,21 @@ pub struct Bucket {
 }
 
 impl Bucket {
-    pub fn url<I>(&self, key: I) -> Result<Url>
-    where
-        I: IntoIterator,
-        I::Item: AsRef<str>,
-    {
+    pub fn url(&self, key: &str) -> Result<Url> {
         let mut url = self.host.clone();
+        let mut path = url.path().to_string();
 
-        // Create a scope so `path` is dropped before returning `url`
-        {
-            let Ok(mut path) = url.path_segments_mut() else {
-                return Err(Error::UrlCannotBeBase(url));
-            };
-
-            path.pop_if_empty();
-            path.push(&self.bucket);
-            path.extend(key);
+        // Append all segments to the path
+        for segment in iter::once(self.bucket.as_str()).chain(key.split('/')) {
+            if !path.ends_with('/') {
+                path.push('/');
+            }
+            let segment = url_escape::encode(segment, &url_escape::COMPONENT);
+            path.push_str(&segment);
         }
 
+        // Finalize the url
+        url.set_path(&path);
         Ok(url)
     }
 }
@@ -57,16 +55,12 @@ fn shard_key(key: &str) -> String {
     format!("{level1}/{level2}/{key}")
 }
 
-pub fn sign_put_url<I>(
+pub fn sign_put_url(
     creds: &Credentials,
     bucket: &Bucket,
-    key: I,
+    key: &str,
     now: &DateTime<Utc>,
-) -> Result<String>
-where
-    I: IntoIterator,
-    I::Item: AsRef<str>,
-{
+) -> Result<String> {
     let url = bucket.url(key)?;
     let extra_headers = vec![];
 
@@ -139,7 +133,7 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
     let key = shard_key(&chksums.sha256);
 
     let now = Utc::now();
-    let url = sign_put_url(creds, bucket, key.split('/'), &now)?;
+    let url = sign_put_url(creds, bucket, &key, &now)?;
 
     info!("Starting s3 upload for {key}");
     let start = Instant::now();
@@ -188,10 +182,10 @@ mod tests {
             bucket: "my-bucket".to_string(),
             host: Url::parse("https://s3.eu-south-1.wasabisys.com").unwrap(),
         };
-        let url = bucket.url(["path", "to", "object.txt"]).unwrap();
+        let url = bucket.url("sha256:of/my/object.txt").unwrap();
         assert_eq!(
             url.as_str(),
-            "https://s3.eu-south-1.wasabisys.com/my-bucket/path/to/object.txt"
+            "https://s3.eu-south-1.wasabisys.com/my-bucket/sha256%3Aof/my/object.txt"
         );
     }
 
@@ -204,8 +198,7 @@ mod tests {
             host: Url::parse("https://s3.eu-south-1.wasabisys.com").unwrap(),
         };
         let now = DateTime::parse_from_rfc3339("2026-01-22T13:37:00+01:00").unwrap();
-        let url =
-            sign_put_url(&creds, &bucket, ["path", "to", "object.txt"], &now.to_utc()).unwrap();
+        let url = sign_put_url(&creds, &bucket, "path/to/object.txt", &now.to_utc()).unwrap();
         assert_eq!(
             url.as_str(),
             "https://s3.eu-south-1.wasabisys.com/my-bucket/path/to/object.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=abc%2F20260122%2Feu-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260122T123700Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=7d151ccbcb19938b7e37d01c08f343e3acdcfe9bb976daa3590d867bd31e11f7"
