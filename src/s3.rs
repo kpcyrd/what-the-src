@@ -1,13 +1,13 @@
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::utils::HttpClient;
-use async_compression::tokio::write::ZstdEncoder;
+use async_compression::{Level, tokio::write::ZstdEncoder};
 use chrono::{DateTime, Utc};
 use reqwest::Url;
 use s3_presign::Credentials;
 use std::pin::Pin;
 use std::time::Instant;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
 
 const EXPIRATION: u64 = 900; // 15 minutes
 const METHOD: &str = "PUT";
@@ -49,7 +49,7 @@ impl Bucket {
 
 fn shard_key(key: &str) -> String {
     let Some((level1, key)) = key.split_at_checked(SHARD_LEVEL1) else {
-        return format!("{key}");
+        return key.to_string();
     };
     let Some((level2, key)) = key.split_at_checked(SHARD_LEVEL2) else {
         return format!("{level1}/{key}");
@@ -93,7 +93,7 @@ pub struct FsBuffer<W: AsyncWrite> {
 
 impl<W: AsyncWrite + AsyncSeek + Unpin> FsBuffer<W> {
     pub fn new(writer: W) -> Self {
-        let writer = ZstdEncoder::new(writer);
+        let writer = ZstdEncoder::with_quality(writer, Level::Best);
         Self { writer }
     }
 
