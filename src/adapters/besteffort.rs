@@ -1,6 +1,6 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{self, AsyncWrite};
+use tokio::io::{self, AsyncSeek, AsyncWrite, SeekFrom};
 
 /// A wrapper around an AsyncWrite that silently swallows errors after the first failure.
 /// After an error occurs, all subsequent writes are ignored but report success.
@@ -84,6 +84,20 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for BestEffortWriter<W> {
             }
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+/// Pass through seek (this is not allowed to fail)
+impl<W: AsyncSeek + Unpin> AsyncSeek for BestEffortWriter<W> {
+    fn start_seek(mut self: Pin<&mut Self>, position: SeekFrom) -> io::Result<()> {
+        Pin::new(&mut self.writer).start_seek(position)
+    }
+
+    fn poll_complete(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> Poll<io::Result<u64>> {
+        Pin::new(&mut self.writer).poll_complete(cx)
     }
 }
 

@@ -1,7 +1,8 @@
 use crate::errors::*;
 use crate::ingest;
-use crate::s3::Bucket;
+use crate::s3::{Bucket, UploadConfig};
 use crate::s3_presign::Credentials;
+use crate::utils::HttpClient;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -44,6 +45,8 @@ pub struct Temp {
 pub struct Worker {
     #[command(flatten)]
     pub tmp: Temp,
+    #[command(flatten)]
+    pub s3: S3,
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
@@ -337,7 +340,7 @@ pub struct ReindexSbom {
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct S3 {
     #[arg(long, env = "WHATSRC_S3_ACCESS_KEY")]
     pub access_key: String,
@@ -363,6 +366,14 @@ impl S3 {
             host: self.host.parse()?,
         };
         Ok(bucket)
+    }
+
+    pub fn upload_config(&self, http: HttpClient, tmp_path: &str) -> UploadConfig {
+        UploadConfig {
+            http,
+            s3: self.clone(),
+            tmp_path: PathBuf::from(tmp_path),
+        }
     }
 }
 

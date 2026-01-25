@@ -1,16 +1,21 @@
+use crate::adapters::besteffort::BestEffortWriter;
+use crate::adapters::optional::OptionalWriter;
+use crate::adapters::tee::{self, TeeStream};
 use crate::args;
 use crate::chksums::{Checksums, Hasher};
 use crate::compression::Decompressor;
 use crate::db;
 use crate::errors::*;
+use crate::s3::{self, UploadConfig};
 use crate::sbom;
+use async_tempfile::TempFile;
 use digest::Digest;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::path::Path;
 use tokio::fs::File;
-use tokio::io::{self, AsyncRead, AsyncReadExt};
+use tokio::io::{self, AsyncRead, AsyncReadExt, ReadBuf};
 use tokio_tar::{Archive, EntryType};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -273,6 +278,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Option<&db::Client>,
     reader: R,
     compression: Option<&str>,
+    upload_config: Option<&UploadConfig>,
 ) -> Result<TarSummary> {
     // Setup decompressor
     let reader = io::BufReader::new(Hasher::new(reader));
@@ -285,9 +291,25 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     };
     let reader = Hasher::new(reader);
 
+    // Prepare s3 filesystem buffer
+    let writer = if let Some(config) = upload_config {
+        let writer = TempFile::new_in(&*config.tmp_path).await?;
+        let writer = BestEffortWriter::new(writer);
+        OptionalWriter::new(writer)
+    } else {
+        OptionalWriter::discard()
+    };
+    let writer = s3::FsBuffer::new(writer);
+
+    let mut buf = tee::buf();
+    let reader = TeeStream::new(reader, writer, ReadBuf::uninit(&mut buf));
+
     // Open and read archive
     let mut builder = TarSummaryBuilder::new(db);
     let reader = builder.stream_archive(reader).await?;
+
+    // Split-off writer
+    let (reader, writer) = reader.into_inner();
 
     // Determine hashes
     let (reader, inner_digests) = reader.digests();
@@ -302,6 +324,25 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     if let Some(db) = db {
         summary.insert_db(db, outer_label).await?;
     }
+
+    if let Some(upload_config) = upload_config
+        && let Some(reader) = writer.finish_rewind().await?.into_inner()
+    {
+        if let Some(err) = reader.error() {
+            error!("Error during upload buffering: {err:#}");
+        } else {
+            let reader = reader.into_inner();
+            s3::upload(
+                &upload_config.http,
+                &upload_config.s3.creds(),
+                &upload_config.s3.bucket()?,
+                &summary.inner_digests,
+                reader,
+            )
+            .await?;
+        }
+    }
+
     Ok(summary)
 }
 
@@ -314,7 +355,8 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
         Box::new(io::stdin())
     };
 
-    stream_data(Some(&db), input, args.compression.as_deref()).await?;
+    // TODO: upload_config from args(?)
+    stream_data(Some(&db), input, args.compression.as_deref(), None).await?;
 
     Ok(())
 }
@@ -402,7 +444,9 @@ mod tests {
             0x0, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xc3, 0x15, 0xdc, 0x23, 0xbf, 0x4f, 0x0, 0x28, 0x0, 0x0,
         ];
 
-        let summary = stream_data(None, &data[..], Some("gz")).await.unwrap();
+        let summary = stream_data(None, &data[..], Some("gz"), None)
+            .await
+            .unwrap();
         assert_eq!(summary, TarSummary {
             inner_digests: Checksums {
                 sha256: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),

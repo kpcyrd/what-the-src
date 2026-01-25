@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::s3::UploadConfig;
 use fd_lock::RwLock;
 use std::io::BufRead;
 use std::process::Stdio;
@@ -49,7 +50,12 @@ impl FromStr for GitUrl {
     }
 }
 
-pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<()> {
+pub async fn take_snapshot(
+    db: &db::Client,
+    git: &GitUrl,
+    tmp: &str,
+    upload_config: Option<&UploadConfig>,
+) -> Result<()> {
     fs::create_dir_all(tmp).await?;
     let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
@@ -159,7 +165,7 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let summary = ingest::tar::stream_data(Some(db), stdout, None).await?;
+    let summary = ingest::tar::stream_data(Some(db), stdout, None, upload_config).await?;
 
     let status = child.wait().await?;
     if !status.success() {
@@ -182,7 +188,8 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
 pub async fn run(args: &args::IngestGit) -> Result<()> {
     let db = db::Client::create().await?;
 
-    take_snapshot(&db, &args.git, &args.tmp).await?;
+    // TODO: upload_config from args(?)
+    take_snapshot(&db, &args.git, &args.tmp, None).await?;
 
     Ok(())
 }

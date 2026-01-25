@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::s3::UploadConfig;
 use crate::utils;
 use futures::StreamExt;
 use std::process::Stdio;
@@ -12,6 +13,7 @@ use tokio_tar::{Archive, EntryType};
 
 pub async fn read_routine<R: AsyncRead + Unpin>(
     db: &db::Client,
+    upload_config: Option<&UploadConfig>,
     reader: R,
     vendor: String,
     package: String,
@@ -57,12 +59,12 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
         };
 
         // in case of chromium, calculate the checksum but do not import
-        let tar_db = if filename.starts_with("chromium-") {
-            None
+        let (tar_db, upload_config) = if filename.starts_with("chromium-") {
+            (None, None)
         } else {
-            Some(db)
+            (Some(db), upload_config)
         };
-        let summary = ingest::tar::stream_data(tar_db, entry, compression).await?;
+        let summary = ingest::tar::stream_data(tar_db, entry, compression, upload_config).await?;
 
         let r = db::Ref {
             chksum: summary.outer_digests.sha256.clone(),
@@ -79,6 +81,7 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Arc<db::Client>,
+    upload_config: Option<&UploadConfig>,
     mut reader: R,
     vendor: String,
     package: String,
@@ -98,8 +101,18 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     };
 
     let stdout = child.stdout.take().unwrap();
-    let reader =
-        tokio::spawn(async move { read_routine(&db, stdout, vendor, package, version).await });
+    let upload_config = upload_config.cloned();
+    let reader = tokio::spawn(async move {
+        read_routine(
+            &db,
+            upload_config.as_ref(),
+            stdout,
+            vendor,
+            package,
+            version,
+        )
+        .await
+    });
 
     let (reader, writer) = tokio::join!(reader, writer);
     debug!("Sent {} bytes to child process", writer?);
@@ -115,9 +128,11 @@ pub async fn run(args: &args::IngestRpm) -> Result<()> {
     let db = db::Client::create().await?;
     let db = Arc::new(db);
 
+    // TODO: upload_config from args(?)
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
     stream_data(
         db.clone(),
+        None,
         reader,
         args.vendor.to_string(),
         args.package.to_string(),

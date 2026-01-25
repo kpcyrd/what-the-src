@@ -2,6 +2,7 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
+use crate::s3::UploadConfig;
 use crate::sbom;
 use crate::utils;
 use std::sync::Arc;
@@ -30,6 +31,7 @@ pub struct Worker {
     db: Arc<db::Client>,
     http: utils::HttpClient,
     fs_tmp: String,
+    upload_config: UploadConfig,
 }
 
 impl Worker {
@@ -78,7 +80,13 @@ impl Worker {
                 };
 
                 // If there's an "on success" hook, insert it
-                let summary = ingest::tar::stream_data(Some(&self.db), reader, compression).await?;
+                let summary = ingest::tar::stream_data(
+                    Some(&self.db),
+                    reader,
+                    compression,
+                    Some(&self.upload_config),
+                )
+                .await?;
                 if let Some(pkg) = success_ref {
                     let r = db::Ref {
                         chksum: summary.outer_digests.sha256,
@@ -126,6 +134,7 @@ impl Worker {
 
                 ingest::rpm::stream_data(
                     self.db.clone(),
+                    Some(&self.upload_config),
                     reader,
                     vendor.to_string(),
                     package.to_string(),
@@ -185,7 +194,8 @@ impl Worker {
             }
             TaskData::GitSnapshot { url } => {
                 let git = url.parse::<ingest::git::GitUrl>()?;
-                ingest::git::take_snapshot(&self.db, &git, &self.fs_tmp).await?;
+                ingest::git::take_snapshot(&self.db, &git, &self.fs_tmp, Some(&self.upload_config))
+                    .await?;
             }
             TaskData::IndexSbom { strain, chksum } => {
                 // Support old sbom task format
@@ -236,11 +246,14 @@ impl Worker {
 pub async fn run(args: &args::Worker) -> Result<()> {
     let db = db::Client::create().await?;
     let http = utils::http_client(args.socks5.as_deref())?;
+    // Proxy is for downloads only
+    let s3_http = utils::http_client(None)?;
 
     let worker = Worker {
         db: Arc::new(db),
         http,
         fs_tmp: args.tmp.path.to_string(),
+        upload_config: args.s3.upload_config(s3_http, &args.tmp.path),
     };
 
     loop {

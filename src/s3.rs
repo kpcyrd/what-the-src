@@ -1,3 +1,4 @@
+use crate::args;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::s3_presign::{self, Credentials};
@@ -9,6 +10,7 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
 };
 use std::iter;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
@@ -20,6 +22,13 @@ const SERVICE: &str = "s3";
 
 const SHARD_LEVEL1: usize = 9;
 const SHARD_LEVEL2: usize = 2;
+
+#[derive(Clone)]
+pub struct UploadConfig {
+    pub http: HttpClient,
+    pub s3: args::S3,
+    pub tmp_path: PathBuf,
+}
 
 #[derive(Debug, Clone)]
 pub struct Bucket {
@@ -206,7 +215,6 @@ mod tests {
         let sharded = shard_key(key_level1).collect::<String>();
         assert_eq!(sharded, "sha256-e3");
     }
-
 
     #[test]
     fn test_bucket_url() {

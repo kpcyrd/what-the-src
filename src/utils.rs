@@ -26,6 +26,7 @@ pub fn http_client(socks5: Option<&str>) -> Result<HttpClient> {
     Ok(HttpClient { reqwest: http })
 }
 
+#[derive(Clone)]
 pub struct HttpClient {
     reqwest: reqwest::Client,
 }
