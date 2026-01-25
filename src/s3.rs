@@ -4,7 +4,7 @@ use crate::args;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::s3_presign::{self, Credentials};
-use crate::utils::HttpClient;
+use crate::utils::{self, HttpClient};
 use async_compression::{Level, tokio::write::ZstdEncoder};
 use async_tempfile::TempFile;
 use chrono::{DateTime, Utc};
@@ -37,8 +37,20 @@ pub enum UploadClient {
 }
 
 impl UploadClient {
-    pub fn new(http: HttpClient, s3: args::S3, tmp_path: PathBuf) -> Self {
-        Self::Enabled { http, s3, tmp_path }
+    pub fn new<P: Into<PathBuf>>(s3: Option<args::S3>, tmp_path: Option<P>) -> Result<Self> {
+        let Some(s3) = s3 else {
+            return Ok(Self::Disabled);
+        };
+
+        let tmp_path = match tmp_path {
+            Some(p) => p.into(),
+            None => return Ok(Self::Disabled),
+        };
+
+        // Proxy is for downloads only
+        let http = utils::http_client(None)?;
+
+        Ok(Self::Enabled { http, s3, tmp_path })
     }
 
     pub const fn disabled() -> Self {

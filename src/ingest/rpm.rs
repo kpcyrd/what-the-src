@@ -121,11 +121,12 @@ pub async fn run(args: &args::IngestRpm) -> Result<()> {
     let db = db::Client::create().await?;
     let db = Arc::new(db);
 
-    // TODO: upload_config from args(?)
+    let upload = UploadClient::new(args.s3.clone(), args.tmp.path.as_ref())?;
+
     let reader = utils::fetch_or_open(&args.file, args.fetch).await?;
     stream_data(
         db.clone(),
-        &UploadClient::disabled(),
+        &upload,
         reader,
         args.vendor.to_string(),
         args.package.to_string(),

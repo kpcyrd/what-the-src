@@ -39,13 +39,20 @@ pub struct Temp {
     pub path: String,
 }
 
+#[derive(Debug, Parser)]
+pub struct OptionalTemp {
+    /// Path to use for temporary git clone operations
+    #[arg(long = "fs-tmp", env = "WHATSRC_FS_TMP")]
+    pub path: Option<String>,
+}
+
 /// Run worker for background jobs
 #[derive(Debug, Parser)]
 pub struct Worker {
     #[command(flatten)]
     pub tmp: Temp,
     #[command(flatten)]
-    pub s3: S3,
+    pub s3: Option<S3>,
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
@@ -93,6 +100,10 @@ pub struct Fetch {
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
 pub struct IngestTar {
+    #[command(flatten)]
+    pub s3: Option<S3>,
+    #[command(flatten)]
+    pub tmp: OptionalTemp,
     #[arg(short, long)]
     pub compression: Option<String>,
     pub file: Option<String>,
@@ -101,6 +112,8 @@ pub struct IngestTar {
 /// Create a `git archive` of a git ref
 #[derive(Debug, Parser)]
 pub struct IngestGit {
+    #[command(flatten)]
+    pub s3: Option<S3>,
     /// The directory to clone into
     #[arg(long)]
     pub tmp: String,
@@ -128,6 +141,10 @@ pub struct IngestPacmanSnapshot {
 /// Ingest a .src.rpm
 #[derive(Debug, Parser)]
 pub struct IngestRpm {
+    #[command(flatten)]
+    pub s3: Option<S3>,
+    #[command(flatten)]
+    pub tmp: OptionalTemp,
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]
@@ -340,16 +357,17 @@ pub struct ReindexSbom {
 }
 
 #[derive(Debug, Clone, Parser)]
+#[group(requires_all = ["access_key", "secret_key", "bucket"])]
 pub struct S3 {
-    #[arg(long, env = "WHATSRC_S3_ACCESS_KEY")]
+    #[arg(long, required = false, env = "WHATSRC_S3_ACCESS_KEY")]
     pub access_key: String,
-    #[arg(long, env = "WHATSRC_S3_SECRET_KEY")]
+    #[arg(long, required = false, env = "WHATSRC_S3_SECRET_KEY")]
     pub secret_key: String,
     #[arg(long, default_value = "https://s3.eu-south-1.wasabisys.com")]
     pub host: String,
     #[arg(long, default_value = "eu-south-1")]
     pub region: String,
-    #[arg(long)]
+    #[arg(long, required = false)]
     pub bucket: String,
 }
 

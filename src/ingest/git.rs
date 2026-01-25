@@ -187,9 +187,9 @@ pub async fn take_snapshot(
 
 pub async fn run(args: &args::IngestGit) -> Result<()> {
     let db = db::Client::create().await?;
+    let upload = UploadClient::new(args.s3.clone(), Some(&args.tmp))?;
 
-    // TODO: upload_config from args(?)
-    take_snapshot(&db, &UploadClient::disabled(), &args.git, &args.tmp).await?;
+    take_snapshot(&db, &upload, &args.git, &args.tmp).await?;
 
     Ok(())
 }

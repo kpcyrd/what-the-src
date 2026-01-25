@@ -5,7 +5,6 @@ use crate::ingest;
 use crate::s3::UploadClient;
 use crate::sbom;
 use crate::utils;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::time::{self, Duration};
 
@@ -242,14 +241,14 @@ impl Worker {
 pub async fn run(args: &args::Worker) -> Result<()> {
     let db = db::Client::create().await?;
     let http = utils::http_client(args.socks5.as_deref())?;
-    // Proxy is for downloads only
-    let s3_http = utils::http_client(None)?;
+
+    let upload = UploadClient::new(args.s3.clone(), Some(&args.tmp.path))?;
 
     let worker = Worker {
         db: Arc::new(db),
         http,
+        upload,
         fs_tmp: args.tmp.path.to_string(),
-        upload: UploadClient::new(s3_http, args.s3.clone(), PathBuf::from(&args.tmp.path)),
     };
 
     loop {

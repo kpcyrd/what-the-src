@@ -328,6 +328,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
 
 pub async fn run(args: &args::IngestTar) -> Result<()> {
     let db = db::Client::create().await?;
+    let upload = UploadClient::new(args.s3.clone(), args.tmp.path.as_ref())?;
 
     let input: Box<dyn AsyncRead + Unpin> = if let Some(path) = &args.file {
         Box::new(File::open(path).await?)
@@ -335,14 +336,7 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
         Box::new(io::stdin())
     };
 
-    // TODO: upload_config from args(?)
-    stream_data(
-        Some(&db),
-        &UploadClient::disabled(),
-        input,
-        args.compression.as_deref(),
-    )
-    .await?;
+    stream_data(Some(&db), &upload, input, args.compression.as_deref()).await?;
 
     Ok(())
 }
