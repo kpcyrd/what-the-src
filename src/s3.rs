@@ -48,14 +48,18 @@ impl Bucket {
     }
 }
 
-fn shard_key(key: &str) -> String {
-    let Some((level1, key)) = key.split_at_checked(SHARD_LEVEL1) else {
-        return key.to_string();
-    };
-    let Some((level2, key)) = key.split_at_checked(SHARD_LEVEL2) else {
-        return format!("{level1}/{key}");
-    };
-    format!("{level1}/{level2}/{key}")
+fn shard_key(key: &str) -> impl Iterator<Item = char> + '_ {
+    key.chars()
+        .enumerate()
+        .flat_map(|(idx, ch)| {
+            if idx == SHARD_LEVEL1 || idx == SHARD_LEVEL1 + SHARD_LEVEL2 {
+                [Some('/'), Some(ch)]
+            } else {
+                [Some(ch), None]
+            }
+        })
+        .flatten()
+        .map(|c| if c == ':' { '-' } else { c })
 }
 
 pub fn sign_put_url(
@@ -138,7 +142,7 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
     chksums: &Checksums,
     reader: R,
 ) -> Result<()> {
-    let key = shard_key(&chksums.sha256);
+    let key = shard_key(&chksums.sha256).collect::<String>();
 
     let headers = HeaderMap::from_iter([
         (
@@ -175,26 +179,34 @@ mod tests {
     #[test]
     fn test_sharded_key() {
         let key = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-        let sharded = shard_key(key);
+        let sharded = shard_key(key).collect::<String>();
         assert_eq!(
             sharded,
-            "sha256:e3/b0/c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sha256-e3/b0/c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         );
     }
 
     #[test]
     fn test_sharded_key_short1() {
         let key_level1 = "sha256:e";
-        let sharded = shard_key(key_level1);
-        assert_eq!(sharded, "sha256:e");
+        let sharded = shard_key(key_level1).collect::<String>();
+        assert_eq!(sharded, "sha256-e");
     }
 
     #[test]
     fn test_sharded_key_short2() {
         let key_level1 = "sha256:e3b";
-        let sharded = shard_key(key_level1);
-        assert_eq!(sharded, "sha256:e3/b");
+        let sharded = shard_key(key_level1).collect::<String>();
+        assert_eq!(sharded, "sha256-e3/b");
     }
+
+    #[test]
+    fn test_sharded_key_short_on_boundary() {
+        let key_level1 = "sha256:e3";
+        let sharded = shard_key(key_level1).collect::<String>();
+        assert_eq!(sharded, "sha256-e3");
+    }
+
 
     #[test]
     fn test_bucket_url() {
