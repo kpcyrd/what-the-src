@@ -1,3 +1,4 @@
+pub mod adapters;
 pub mod alias;
 pub mod apkbuild;
 pub mod apt;
@@ -9,6 +10,8 @@ pub mod errors;
 pub mod ingest;
 pub mod pkgbuild;
 pub mod reindex;
+pub mod s3;
+pub mod s3_presign;
 pub mod sbom;
 pub mod sync;
 pub mod utils;
@@ -17,14 +20,23 @@ pub mod web;
 pub mod worker;
 pub mod yocto;
 
+use crate::adapters::tee::{self, TeeStream};
 use crate::args::{Args, Plumbing, SubCommand};
+use crate::chksums::Hasher;
 use crate::errors::*;
+use async_tempfile::TempFile;
+use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
-use tokio::io::{self, AsyncReadExt};
+use reqwest::header::HeaderMap;
+use std::path::Path;
+use tokio::fs::File;
+use tokio::io::{self, AsyncReadExt, ReadBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    dotenvy::dotenv().ok();
+
     let args = Args::parse();
     let log_level = match args.verbose {
         0 => "what_the_src=info",
@@ -34,8 +46,6 @@ async fn main() -> Result<()> {
         _ => "trace",
     };
     env_logger::Builder::from_env(Env::default().default_filter_or(log_level)).init();
-
-    dotenvy::dotenv().ok();
 
     match args.subcommand {
         SubCommand::Web(args) => web::run(&args).await,
@@ -82,5 +92,42 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexUrl(args)) => reindex::run_url(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexSbom(args)) => reindex::run_sbom(&args).await,
+        SubCommand::Plumbing(Plumbing::S3Presign(args)) => {
+            let creds = args.s3.creds();
+            let bucket = args.s3.bucket()?;
+            let now = Utc::now();
+            let url = s3::sign_put_url(&creds, &bucket, &HeaderMap::new(), &args.key, &now)?;
+            println!("{url}");
+            Ok(())
+        }
+        SubCommand::Plumbing(Plumbing::Upload(args)) => {
+            let creds = args.s3.creds();
+            let bucket = args.s3.bucket()?;
+
+            let reader = File::open(args.file).await?;
+            let reader = Hasher::new(reader);
+
+            let writer = TempFile::new_in(Path::new(&args.tmp.path)).await?;
+            let writer = s3::FsBuffer::new(writer);
+
+            let mut buf = tee::buf();
+            let mut stream = TeeStream::new(reader, writer, ReadBuf::uninit(&mut buf));
+
+            let n = io::copy(&mut stream, &mut io::sink()).await?;
+            info!("Streamed {n} bytes");
+
+            let (reader, writer) = stream.into_inner();
+            let (_file, chksums) = reader.digests();
+            info!("Computed hash: {}", chksums.sha256);
+
+            // Finalize compression
+            let writer = writer.finish_rewind().await?;
+
+            // Upload data
+            let http = utils::http_client(None)?;
+            s3::upload(&http, &creds, &bucket, &chksums, writer).await?;
+
+            Ok(())
+        }
     }
 }

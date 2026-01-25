@@ -1,6 +1,10 @@
+use crate::errors::*;
 use crate::ingest;
+use crate::s3::Bucket;
+use crate::s3_presign::Credentials;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 #[command(version)]
@@ -28,15 +32,30 @@ pub struct Web {
     pub bind_addr: SocketAddr,
 }
 
+#[derive(Debug, Parser)]
+pub struct Temp {
+    /// Path to use for temporary git clone operations
+    #[arg(long = "fs-tmp", env = "WHATSRC_FS_TMP")]
+    pub path: String,
+}
+
+#[derive(Debug, Parser)]
+pub struct OptionalTemp {
+    /// Path to use for temporary git clone operations
+    #[arg(long = "fs-tmp", env = "WHATSRC_FS_TMP")]
+    pub path: Option<String>,
+}
+
 /// Run worker for background jobs
 #[derive(Debug, Parser)]
 pub struct Worker {
+    #[command(flatten)]
+    pub tmp: Temp,
+    #[command(flatten)]
+    pub s3: Option<S3>,
     /// Request through a proxy to evade rate limits
     #[arg(long)]
     pub socks5: Option<String>,
-    /// Path to use for temporary git clone operations
-    #[arg(long, env = "WHATSRC_GIT_TMP")]
-    pub git_tmp: String,
 }
 
 #[derive(Debug, Subcommand)]
@@ -64,6 +83,8 @@ pub enum Plumbing {
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
+    S3Presign(S3Presign),
+    Upload(Upload),
 }
 
 /// Fetch a remote http URL
@@ -79,6 +100,10 @@ pub struct Fetch {
 /// Ingest a .tar into the archive
 #[derive(Debug, Parser)]
 pub struct IngestTar {
+    #[command(flatten)]
+    pub s3: Option<S3>,
+    #[command(flatten)]
+    pub tmp: OptionalTemp,
     #[arg(short, long)]
     pub compression: Option<String>,
     pub file: Option<String>,
@@ -87,6 +112,8 @@ pub struct IngestTar {
 /// Create a `git archive` of a git ref
 #[derive(Debug, Parser)]
 pub struct IngestGit {
+    #[command(flatten)]
+    pub s3: Option<S3>,
     /// The directory to clone into
     #[arg(long)]
     pub tmp: String,
@@ -114,6 +141,10 @@ pub struct IngestPacmanSnapshot {
 /// Ingest a .src.rpm
 #[derive(Debug, Parser)]
 pub struct IngestRpm {
+    #[command(flatten)]
+    pub s3: Option<S3>,
+    #[command(flatten)]
+    pub tmp: OptionalTemp,
     #[arg(long)]
     pub vendor: String,
     #[arg(long)]
@@ -323,4 +354,54 @@ pub struct ReindexSbom {
     /// Upper limit of tasks to schedule
     #[arg(long)]
     pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Parser)]
+#[group(requires_all = ["access_key", "secret_key", "bucket"])]
+pub struct S3 {
+    #[arg(long, required = false, env = "WHATSRC_S3_ACCESS_KEY")]
+    pub access_key: String,
+    #[arg(long, required = false, env = "WHATSRC_S3_SECRET_KEY")]
+    pub secret_key: String,
+    #[arg(long, default_value = "https://s3.eu-south-1.wasabisys.com")]
+    pub host: String,
+    #[arg(long, default_value = "eu-south-1")]
+    pub region: String,
+    #[arg(long, required = false)]
+    pub bucket: String,
+}
+
+impl S3 {
+    pub fn creds(&self) -> Credentials {
+        Credentials::new(&self.access_key, &self.secret_key, None)
+    }
+
+    pub fn bucket(&self) -> Result<Bucket> {
+        let bucket = Bucket {
+            region: self.region.clone(),
+            bucket: self.bucket.clone(),
+            host: self.host.parse()?,
+        };
+        Ok(bucket)
+    }
+}
+
+/// Compute an S3 signature
+#[derive(Debug, Parser)]
+pub struct S3Presign {
+    #[command(flatten)]
+    pub s3: S3,
+    /// The object key to write to
+    pub key: String,
+}
+
+/// Upload to content-addressed S3 storage
+#[derive(Debug, Parser)]
+pub struct Upload {
+    #[command(flatten)]
+    pub s3: S3,
+    #[command(flatten)]
+    pub tmp: Temp,
+    /// The file to upload
+    pub file: PathBuf,
 }

@@ -2,6 +2,7 @@ use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
 use crate::ingest;
+use crate::s3::UploadClient;
 use crate::sbom;
 use crate::utils;
 use std::sync::Arc;
@@ -29,7 +30,8 @@ fn normalize_archlinux_gitlab_names(package: &str) -> String {
 pub struct Worker {
     db: Arc<db::Client>,
     http: utils::HttpClient,
-    git_tmp: String,
+    upload: UploadClient,
+    fs_tmp: String,
 }
 
 impl Worker {
@@ -78,7 +80,9 @@ impl Worker {
                 };
 
                 // If there's an "on success" hook, insert it
-                let summary = ingest::tar::stream_data(Some(&self.db), reader, compression).await?;
+                let summary =
+                    ingest::tar::stream_data(Some(&self.db), &self.upload, reader, compression)
+                        .await?;
                 if let Some(pkg) = success_ref {
                     let r = db::Ref {
                         chksum: summary.outer_digests.sha256,
@@ -126,6 +130,7 @@ impl Worker {
 
                 ingest::rpm::stream_data(
                     self.db.clone(),
+                    &self.upload,
                     reader,
                     vendor.to_string(),
                     package.to_string(),
@@ -185,7 +190,7 @@ impl Worker {
             }
             TaskData::GitSnapshot { url } => {
                 let git = url.parse::<ingest::git::GitUrl>()?;
-                ingest::git::take_snapshot(&self.db, &git, &self.git_tmp).await?;
+                ingest::git::take_snapshot(&self.db, &self.upload, &git, &self.fs_tmp).await?;
             }
             TaskData::IndexSbom { strain, chksum } => {
                 // Support old sbom task format
@@ -237,10 +242,13 @@ pub async fn run(args: &args::Worker) -> Result<()> {
     let db = db::Client::create().await?;
     let http = utils::http_client(args.socks5.as_deref())?;
 
+    let upload = UploadClient::new(args.s3.clone(), Some(&args.tmp.path))?;
+
     let worker = Worker {
         db: Arc::new(db),
         http,
-        git_tmp: args.git_tmp.to_string(),
+        upload,
+        fs_tmp: args.tmp.path.to_string(),
     };
 
     loop {

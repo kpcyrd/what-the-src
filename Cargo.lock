@@ -149,6 +149,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-tempfile"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8a57b75c36e16f4d015e60e6a177552976a99b6947724403c551bcfa7cb1207"
+dependencies = [
+ "tokio",
+]
+
+[[package]]
 name = "atoi"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -310,7 +319,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fac4744fb15ae8337dc853fee7fb3f4e48c0fbaa23d0afe49c447b4fab126118"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -3674,7 +3685,9 @@ dependencies = [
  "astral-tokio-tar",
  "async-compression",
  "async-stream",
+ "async-tempfile",
  "blake2",
+ "chrono",
  "clap",
  "data-encoding",
  "diffy-fork-filenames",
@@ -3686,10 +3699,12 @@ dependencies = [
  "futures",
  "handlebars",
  "hex",
+ "hmac",
  "log",
  "lz4_flex",
  "maplit",
  "num-format",
+ "percent-encoding",
  "plist",
  "regex",
  "reqwest",
@@ -3707,6 +3722,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml",
+ "url",
  "url-escape",
  "warp",
  "warp-embed",

@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::s3::UploadClient;
 use fd_lock::RwLock;
 use std::io::BufRead;
 use std::process::Stdio;
@@ -49,12 +50,22 @@ impl FromStr for GitUrl {
     }
 }
 
-pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<()> {
+pub async fn take_snapshot(
+    db: &db::Client,
+    upload: &UploadClient,
+    git: &GitUrl,
+    tmp: &str,
+) -> Result<()> {
     fs::create_dir_all(tmp).await?;
     let dir = fs::File::open(tmp).await?;
     info!("Getting lock on filesystem git workdir...");
     let mut lock = RwLock::new(dir.into_std().await);
-    let _lock = lock.write();
+    // The `.write()` function can return an error if interrupted, so we loop until we get the lock
+    let lock = loop {
+        if let Ok(lock) = lock.write() {
+            break lock;
+        }
+    };
     debug!("Acquired lock");
 
     let reference = if let Some(tag) = &git.tag {
@@ -154,7 +165,7 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let summary = ingest::tar::stream_data(Some(db), stdout, None).await?;
+    let summary = ingest::tar::stream_data(Some(db), upload, stdout, None).await?;
 
     let status = child.wait().await?;
     if !status.success() {
@@ -168,13 +179,17 @@ pub async fn take_snapshot(db: &db::Client, git: &GitUrl, tmp: &str) -> Result<(
     )
     .await?;
 
+    // Explicitly keep the lock held until here
+    drop(lock);
+
     Ok(())
 }
 
 pub async fn run(args: &args::IngestGit) -> Result<()> {
     let db = db::Client::create().await?;
+    let upload = UploadClient::new(args.s3.clone(), Some(&args.tmp))?;
 
-    take_snapshot(&db, &args.git, &args.tmp).await?;
+    take_snapshot(&db, &upload, &args.git, &args.tmp).await?;
 
     Ok(())
 }

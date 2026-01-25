@@ -1,10 +1,12 @@
 use crate::db::{Task, TaskData};
 use crate::errors::*;
 use futures::TryStreamExt;
+use reqwest::Body;
+use reqwest::header::HeaderMap;
 use std::time::Duration;
 use tokio::fs;
 use tokio::io::{self, AsyncRead};
-use tokio_util::io::StreamReader;
+use tokio_util::io::{ReaderStream, StreamReader};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 pub const READ_TIMEOUT: Duration = Duration::from_secs(60);
@@ -24,6 +26,7 @@ pub fn http_client(socks5: Option<&str>) -> Result<HttpClient> {
     Ok(HttpClient { reqwest: http })
 }
 
+#[derive(Clone)]
 pub struct HttpClient {
     reqwest: reqwest::Client,
 }
@@ -34,6 +37,32 @@ impl HttpClient {
         let stream = resp.bytes_stream();
         let stream = StreamReader::new(stream.map_err(io::Error::other));
         Ok(Box::new(stream))
+    }
+
+    pub async fn put<R: AsyncRead + Unpin + Send + 'static>(
+        &self,
+        url: &str,
+        headers: HeaderMap,
+        reader: R,
+    ) -> Result<()> {
+        let stream = ReaderStream::new(reader);
+        let body = Body::wrap_stream(stream);
+        let response = self
+            .reqwest
+            .put(url)
+            .headers(headers)
+            .body(body)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let body = response.text().await?;
+
+        if status.is_success() {
+            Ok(())
+        } else {
+            Err(Error::S3PutError(status.as_u16(), body))
+        }
     }
 }
 

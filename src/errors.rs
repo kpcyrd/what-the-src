@@ -1,6 +1,7 @@
 use crate::ingest;
 use crate::sync::stagex;
 pub use log::{debug, error, info, trace, warn};
+use reqwest::Url;
 use std::process::ExitStatus;
 
 #[derive(Debug, thiserror::Error)]
@@ -15,6 +16,8 @@ pub enum Error {
     Migrate(#[from] sqlx::migrate::MigrateError),
     #[error(transparent)]
     RenderError(#[from] handlebars::RenderError),
+    #[error(transparent)]
+    Tempfile(#[from] async_tempfile::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
@@ -31,6 +34,10 @@ pub enum Error {
     AptError(#[from] apt_parser::errors::APTError),
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
+    #[error(transparent)]
+    ReqwestToString(#[from] reqwest::header::ToStrError),
+    #[error("S3 upload failed({0}): {1:?}")]
+    S3PutError(u16, String),
     #[error(transparent)]
     Srcinfo(#[from] srcinfo::Error),
     #[error(transparent)]
@@ -49,10 +56,16 @@ pub enum Error {
     InvalidUri(#[from] warp::http::uri::InvalidUri),
     #[error(transparent)]
     SerdeUrl(#[from] serde_urlencoded::ser::Error),
+    #[error("URL cannot be used as base: {0}")]
+    UrlCannotBeBase(Url),
+    #[error(transparent)]
+    UrlParse(#[from] url::ParseError),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Child process has exited with error: {0}")]
     ChildExit(std::process::ExitStatus),
+    #[error("Failed to sign s3 url")]
+    S3PresignError,
     #[error("Parser encountered invalid data")]
     InvalidData,
     #[error("Parser encountered unknown variable: ${0}")]
