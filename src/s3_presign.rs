@@ -92,31 +92,6 @@ impl Bucket {
             root: root.to_string(),
         }
     }
-
-    pub fn from_with_root(s: &str, root: &str) -> Self {
-        if s.contains(":") {
-            let mut parts = s.splitn(2, ':');
-            let region = parts.next().unwrap();
-            let bucket = parts.next().unwrap();
-            Self {
-                region: region.to_string(),
-                bucket: bucket.to_string(),
-                root: root.to_string(),
-            }
-        } else {
-            Self {
-                region: "us-east-1".to_string(),
-                bucket: s.to_string(),
-                root: root.to_string(),
-            }
-        }
-    }
-}
-
-impl From<&str> for Bucket {
-    fn from(s: &str) -> Self {
-        Bucket::from_with_root(s, "s3.amazonaws.com")
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -196,7 +171,7 @@ impl Presigner {
                 if bucket != self.bucket {
                     return None;
                 }
-                self.endpoint.join(&key).ok()
+                self.endpoint.join(key).ok()
             }
             AddressingStyle::Path => {
                 let endpoint = self.endpoint.clone();
@@ -292,7 +267,7 @@ pub fn get(credentials: &Credentials, bucket: &Bucket, key: &str, expires: i64) 
     let now = Utc::now();
 
     presigned_url(
-        &credentials,
+        credentials,
         expires as _,
         &url.parse().unwrap(),
         "GET",
@@ -342,11 +317,11 @@ fn escape_key(key: &str) -> String {
             }
             let c1 = key.as_bytes()[i + 1];
             let c2 = key.as_bytes()[i + 2];
-            if !matches!(c1, b'a'..=b'f' | b'A'..=b'F' | b'0'..=b'9') {
+            if !c1.is_ascii_hexdigit() {
                 encoded = false;
                 break;
             }
-            if !matches!(c2, b'a'..=b'f' | b'A'..=b'F' | b'0'..=b'9') {
+            if !c2.is_ascii_hexdigit() {
                 encoded = false;
                 break;
             }
@@ -365,6 +340,7 @@ fn escape_key(key: &str) -> String {
 }
 
 /// Generate pre-signed s3 URL
+#[allow(clippy::too_many_arguments)]
 pub fn presigned_url(
     credentials: &Credentials,
     expiration: u64,
@@ -489,8 +465,8 @@ pub fn presigned_url(
         payload_hash
     );
 
-    let string_to_sign = string_to_sign(&date_time, &region, &canonical_request, service);
-    let signing_key = signing_key(&date_time, secret_key, region, service)?;
+    let string_to_sign = string_to_sign(date_time, region, &canonical_request, service);
+    let signing_key = signing_key(date_time, secret_key, region, service)?;
 
     let mut hmac = HmacSha256::new_from_slice(&signing_key).ok()?;
     hmac.update(string_to_sign.as_bytes());
@@ -516,10 +492,10 @@ fn string_to_sign(
     let mut hasher = Sha256::default();
     hasher.update(canonical_req.as_bytes());
     format!(
-        "AWS4-HMAC-SHA256\n{timestamp}\n{scope}\n{hash}",
+        "AWS4-HMAC-SHA256\n{timestamp}\n{scope}\n{hash:x}",
         timestamp = date_time.format(LONG_DATETIME_FMT),
         scope = scope_string(date_time, region, service),
-        hash = format!("{:x}", hasher.finalize())
+        hash = hasher.finalize()
     )
 }
 
