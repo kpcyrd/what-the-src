@@ -1,10 +1,13 @@
 use crate::chksums::Checksums;
 use crate::errors::*;
+use crate::s3_presign::{self, Credentials};
 use crate::utils::HttpClient;
 use async_compression::{Level, tokio::write::ZstdEncoder};
 use chrono::{DateTime, Utc};
-use reqwest::Url;
-use s3_presign::Credentials;
+use reqwest::{
+    Url,
+    header::{HeaderMap, HeaderName, HeaderValue},
+};
 use std::iter;
 use std::pin::Pin;
 use std::time::Instant;
@@ -35,7 +38,7 @@ impl Bucket {
             if !path.ends_with('/') {
                 path.push('/');
             }
-            let segment = url_escape::encode(segment, &url_escape::COMPONENT);
+            let segment = url_escape::encode(segment, url_escape::COMPONENT);
             path.push_str(&segment);
         }
 
@@ -58,11 +61,16 @@ fn shard_key(key: &str) -> String {
 pub fn sign_put_url(
     creds: &Credentials,
     bucket: &Bucket,
+    headers: &HeaderMap,
     key: &str,
     now: &DateTime<Utc>,
 ) -> Result<String> {
     let url = bucket.url(key)?;
-    let extra_headers = vec![];
+
+    let extra_headers = headers
+        .iter()
+        .map(|(k, v)| Ok((k.to_string(), v.to_str()?.to_string())))
+        .collect::<Result<_>>()?;
 
     let Some(url) = s3_presign::presigned_url(
         creds,
@@ -132,12 +140,25 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
 ) -> Result<()> {
     let key = shard_key(&chksums.sha256);
 
+    let headers = HeaderMap::from_iter([
+        (
+            HeaderName::from_static("content-disposition"),
+            HeaderValue::from_str(&format!("attachment; filename={}.tar.zst", &chksums.sha256))
+                .expect("content-disposition header invalid"),
+        ),
+        (
+            HeaderName::from_static("content-type"),
+            HeaderValue::from_static("application/zstd"),
+        ),
+    ]);
+
     let now = Utc::now();
-    let url = sign_put_url(creds, bucket, &key, &now)?;
+    let url = sign_put_url(creds, bucket, &headers, &key, &now)?;
 
     info!("Starting s3 upload for {key}");
     let start = Instant::now();
-    http.put(&url, reader).await?;
+
+    http.put(&url, headers, reader).await?;
     let duration = start.elapsed();
     info!(
         "Successfully uploaded {key} in {:.2?}s",
@@ -198,10 +219,46 @@ mod tests {
             host: Url::parse("https://s3.eu-south-1.wasabisys.com").unwrap(),
         };
         let now = DateTime::parse_from_rfc3339("2026-01-22T13:37:00+01:00").unwrap();
-        let url = sign_put_url(&creds, &bucket, "path/to/object.txt", &now.to_utc()).unwrap();
+        let url = sign_put_url(
+            &creds,
+            &bucket,
+            &HeaderMap::new(),
+            "path/to/object.txt",
+            &now.to_utc(),
+        )
+        .unwrap();
         assert_eq!(
             url.as_str(),
             "https://s3.eu-south-1.wasabisys.com/my-bucket/path/to/object.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=abc%2F20260122%2Feu-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260122T123700Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=7d151ccbcb19938b7e37d01c08f343e3acdcfe9bb976daa3590d867bd31e11f7"
+        );
+    }
+
+    #[test]
+    fn test_signed_put_disposition() {
+        let creds = Credentials::new("abc", "xyz", None);
+        let bucket = Bucket {
+            region: "eu-south-1".to_string(),
+            bucket: "my-bucket".to_string(),
+            host: Url::parse("https://s3.eu-south-1.wasabisys.com").unwrap(),
+        };
+
+        let headers = HeaderMap::from_iter([(
+            HeaderName::from_static("content-disposition"),
+            HeaderValue::from_static("attachment; filename=ohai.tar.zst"),
+        )]);
+
+        let now = DateTime::parse_from_rfc3339("2026-01-22T13:37:00+01:00").unwrap();
+        let url = sign_put_url(
+            &creds,
+            &bucket,
+            &headers,
+            "path/to/object.txt",
+            &now.to_utc(),
+        )
+        .unwrap();
+        assert_eq!(
+            url.as_str(),
+            "https://s3.eu-south-1.wasabisys.com/my-bucket/path/to/object.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=abc%2F20260122%2Feu-south-1%2Fs3%2Faws4_request&X-Amz-Date=20260122T123700Z&X-Amz-Expires=900&X-Amz-SignedHeaders=content-disposition%3Bhost&X-Amz-Signature=057cf16aafd20446c5ecdb72ff0c31fb7999a3b7adeeef0957925fe31014647f"
         );
     }
 }

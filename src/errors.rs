@@ -35,6 +35,10 @@ pub enum Error {
     #[error(transparent)]
     Reqwest(#[from] reqwest::Error),
     #[error(transparent)]
+    ReqwestToString(#[from] reqwest::header::ToStrError),
+    #[error("S3 upload failed({0}): {1:?}")]
+    S3PutError(u16, String),
+    #[error(transparent)]
     Srcinfo(#[from] srcinfo::Error),
     #[error(transparent)]
     Rpm(#[from] rpm::Error),

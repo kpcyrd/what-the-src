@@ -11,6 +11,7 @@ pub mod ingest;
 pub mod pkgbuild;
 pub mod reindex;
 pub mod s3;
+pub mod s3_presign;
 pub mod sbom;
 pub mod sync;
 pub mod utils;
@@ -27,6 +28,7 @@ use async_tempfile::TempFile;
 use chrono::Utc;
 use clap::Parser;
 use env_logger::Env;
+use reqwest::header::HeaderMap;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{self, AsyncReadExt, ReadBuf};
@@ -94,7 +96,7 @@ async fn main() -> Result<()> {
             let creds = args.s3.creds();
             let bucket = args.s3.bucket()?;
             let now = Utc::now();
-            let url = s3::sign_put_url(&creds, &bucket, &args.key, &now)?;
+            let url = s3::sign_put_url(&creds, &bucket, &HeaderMap::new(), &args.key, &now)?;
             println!("{url}");
             Ok(())
         }

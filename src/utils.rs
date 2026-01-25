@@ -2,6 +2,7 @@ use crate::db::{Task, TaskData};
 use crate::errors::*;
 use futures::TryStreamExt;
 use reqwest::Body;
+use reqwest::header::HeaderMap;
 use std::time::Duration;
 use tokio::fs;
 use tokio::io::{self, AsyncRead};
@@ -40,17 +41,27 @@ impl HttpClient {
     pub async fn put<R: AsyncRead + Unpin + Send + 'static>(
         &self,
         url: &str,
+        headers: HeaderMap,
         reader: R,
     ) -> Result<()> {
         let stream = ReaderStream::new(reader);
         let body = Body::wrap_stream(stream);
-        self.reqwest
+        let response = self
+            .reqwest
             .put(url)
+            .headers(headers)
             .body(body)
             .send()
-            .await?
-            .error_for_status()?;
-        Ok(())
+            .await?;
+
+        let status = response.status();
+        let body = response.text().await?;
+
+        if status.is_success() {
+            Ok(())
+        } else {
+            Err(Error::S3PutError(status.as_u16(), body))
+        }
     }
 }
 

@@ -25,15 +25,16 @@ fd-lock = "4.0.2"
 futures = "0.3.30"
 handlebars = { version = "6", features = ["rust-embed"] }
 hex = "0.4.3"
+hmac = "0.12.1"
 log = "0.4.21"
 lz4_flex = "0.12"
 num-format = "0.4.4"
+percent-encoding = "2.3.2"
 plist = "1.6.1"
 regex = "1.10.4"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "stream", "socks"] }
 rpm = { version = "0.16", default-features = false }
 rust-embed = "8.3.0"
-s3-presign = "0.0.3"
 serde = { version = "1.0.197", features = ["derive"] }
 serde-xml-rs = "0.8"
 serde_json = "1.0.115"
