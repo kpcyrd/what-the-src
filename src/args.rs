@@ -363,11 +363,15 @@ pub struct S3 {
     pub access_key: String,
     #[arg(long, required = false, env = "WHATSRC_S3_SECRET_KEY")]
     pub secret_key: String,
-    #[arg(long, default_value = "https://s3.eu-south-1.wasabisys.com")]
+    #[arg(
+        long,
+        default_value = "https://s3.eu-south-1.wasabisys.com",
+        env = "WHATSRC_S3_HOST"
+    )]
     pub host: String,
-    #[arg(long, default_value = "eu-south-1")]
+    #[arg(long, default_value = "eu-south-1", env = "WHATSRC_S3_REGION")]
     pub region: String,
-    #[arg(long, required = false)]
+    #[arg(long, required = false, env = "WHATSRC_S3_BUCKET")]
     pub bucket: String,
 }
 
