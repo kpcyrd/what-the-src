@@ -132,7 +132,6 @@ fn shard_key(key: &str) -> impl Iterator<Item = char> + '_ {
             }
         })
         .flatten()
-        .map(|c| if c == ':' { '-' } else { c })
 }
 
 pub fn sign_put_url(
@@ -215,12 +214,13 @@ pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
     chksums: &Checksums,
     reader: R,
 ) -> Result<()> {
+    let filename = chksums.sha256.replace(':', "-") + ".tar.zst";
     let key = shard_key(&chksums.sha256).collect::<String>();
 
     let headers = HeaderMap::from_iter([
         (
             HeaderName::from_static("content-disposition"),
-            HeaderValue::from_str(&format!("attachment; filename={}.tar.zst", &chksums.sha256))
+            HeaderValue::from_str(&format!("attachment; filename={filename}"))
                 .expect("content-disposition header invalid"),
         ),
         (
@@ -255,7 +255,7 @@ mod tests {
         let sharded = shard_key(key).collect::<String>();
         assert_eq!(
             sharded,
-            "sha256-e3/b0/c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "sha256:e3/b0/c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         );
     }
 
@@ -263,21 +263,21 @@ mod tests {
     fn test_sharded_key_short1() {
         let key_level1 = "sha256:e";
         let sharded = shard_key(key_level1).collect::<String>();
-        assert_eq!(sharded, "sha256-e");
+        assert_eq!(sharded, "sha256:e");
     }
 
     #[test]
     fn test_sharded_key_short2() {
         let key_level1 = "sha256:e3b";
         let sharded = shard_key(key_level1).collect::<String>();
-        assert_eq!(sharded, "sha256-e3/b");
+        assert_eq!(sharded, "sha256:e3/b");
     }
 
     #[test]
     fn test_sharded_key_short_on_boundary() {
         let key_level1 = "sha256:e3";
         let sharded = shard_key(key_level1).collect::<String>();
-        assert_eq!(sharded, "sha256-e3");
+        assert_eq!(sharded, "sha256:e3");
     }
 
     #[test]
