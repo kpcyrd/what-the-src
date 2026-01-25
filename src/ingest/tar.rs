@@ -1,14 +1,11 @@
-use crate::adapters::besteffort::BestEffortWriter;
-use crate::adapters::optional::OptionalWriter;
 use crate::adapters::tee::{self, TeeStream};
 use crate::args;
 use crate::chksums::{Checksums, Hasher};
 use crate::compression::Decompressor;
 use crate::db;
 use crate::errors::*;
-use crate::s3::{self, UploadConfig};
+use crate::s3::UploadClient;
 use crate::sbom;
-use async_tempfile::TempFile;
 use digest::Digest;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -276,9 +273,9 @@ impl<'a> TarSummaryBuilder<'a> {
 
 pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Option<&db::Client>,
+    upload: &UploadClient,
     reader: R,
     compression: Option<&str>,
-    upload_config: Option<&UploadConfig>,
 ) -> Result<TarSummary> {
     // Setup decompressor
     let reader = io::BufReader::new(Hasher::new(reader));
@@ -292,16 +289,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let reader = Hasher::new(reader);
 
     // Prepare s3 filesystem buffer
-    let writer = if let Some(config) = upload_config {
-        let writer = TempFile::new_in(&*config.tmp_path).await?;
-        let writer = BestEffortWriter::new(writer);
-        OptionalWriter::new(writer)
-    } else {
-        OptionalWriter::discard()
-    };
-    let writer = s3::FsBuffer::new(writer);
-
     let mut buf = tee::buf();
+    let writer = upload.create_disk_buffer().await?;
     let reader = TeeStream::new(reader, writer, ReadBuf::uninit(&mut buf));
 
     // Open and read archive
@@ -325,21 +314,12 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
         summary.insert_db(db, outer_label).await?;
     }
 
-    if let Some(upload_config) = upload_config
-        && let Some(reader) = writer.finish_rewind().await?.into_inner()
-    {
+    if let Some(reader) = writer.finish_rewind().await?.into_inner() {
         if let Some(err) = reader.error() {
             error!("Error during upload buffering: {err:#}");
         } else {
             let reader = reader.into_inner();
-            s3::upload(
-                &upload_config.http,
-                &upload_config.s3.creds(),
-                &upload_config.s3.bucket()?,
-                &summary.inner_digests,
-                reader,
-            )
-            .await?;
+            upload.upload(reader, &summary.inner_digests).await?;
         }
     }
 
@@ -356,7 +336,13 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
     };
 
     // TODO: upload_config from args(?)
-    stream_data(Some(&db), input, args.compression.as_deref(), None).await?;
+    stream_data(
+        Some(&db),
+        &UploadClient::disabled(),
+        input,
+        args.compression.as_deref(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -444,7 +430,7 @@ mod tests {
             0x0, 0x0, 0x0, 0x0, 0x0, 0xfe, 0xc3, 0x15, 0xdc, 0x23, 0xbf, 0x4f, 0x0, 0x28, 0x0, 0x0,
         ];
 
-        let summary = stream_data(None, &data[..], Some("gz"), None)
+        let summary = stream_data(None, &UploadClient::disabled(), &data[..], Some("gz"))
             .await
             .unwrap();
         assert_eq!(summary, TarSummary {

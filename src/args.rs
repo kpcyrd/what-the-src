@@ -1,8 +1,7 @@
 use crate::errors::*;
 use crate::ingest;
-use crate::s3::{Bucket, UploadConfig};
+use crate::s3::Bucket;
 use crate::s3_presign::Credentials;
-use crate::utils::HttpClient;
 use clap::{ArgAction, Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -366,14 +365,6 @@ impl S3 {
             host: self.host.parse()?,
         };
         Ok(bucket)
-    }
-
-    pub fn upload_config(&self, http: HttpClient, tmp_path: &str) -> UploadConfig {
-        UploadConfig {
-            http,
-            s3: self.clone(),
-            tmp_path: PathBuf::from(tmp_path),
-        }
     }
 }
 

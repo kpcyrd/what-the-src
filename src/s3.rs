@@ -1,16 +1,19 @@
+use crate::adapters::besteffort::BestEffortWriter;
+use crate::adapters::optional::OptionalWriter;
 use crate::args;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::s3_presign::{self, Credentials};
 use crate::utils::HttpClient;
 use async_compression::{Level, tokio::write::ZstdEncoder};
+use async_tempfile::TempFile;
 use chrono::{DateTime, Utc};
 use reqwest::{
     Url,
     header::{HeaderMap, HeaderName, HeaderValue},
 };
 use std::iter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite, AsyncWriteExt};
@@ -24,10 +27,59 @@ const SHARD_LEVEL1: usize = 9;
 const SHARD_LEVEL2: usize = 2;
 
 #[derive(Clone)]
-pub struct UploadConfig {
-    pub http: HttpClient,
-    pub s3: args::S3,
-    pub tmp_path: PathBuf,
+pub enum UploadClient {
+    Enabled {
+        http: HttpClient,
+        s3: args::S3,
+        tmp_path: PathBuf,
+    },
+    Disabled,
+}
+
+impl UploadClient {
+    pub fn new(http: HttpClient, s3: args::S3, tmp_path: PathBuf) -> Self {
+        Self::Enabled { http, s3, tmp_path }
+    }
+
+    pub const fn disabled() -> Self {
+        Self::Disabled
+    }
+
+    pub async fn create_disk_buffer(
+        &self,
+    ) -> Result<FsBuffer<OptionalWriter<BestEffortWriter<TempFile>>>> {
+        let writer = match self {
+            Self::Enabled {
+                http: _,
+                s3: _,
+                tmp_path,
+            } => {
+                let writer = TempFile::new_in(Path::new(tmp_path)).await?;
+                let writer = BestEffortWriter::new(writer);
+                OptionalWriter::new(writer)
+            }
+            Self::Disabled => OptionalWriter::discard(),
+        };
+        let writer = FsBuffer::new(writer);
+        Ok(writer)
+    }
+
+    pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
+        &self,
+        reader: R,
+        digests: &Checksums,
+    ) -> Result<()> {
+        let Self::Enabled {
+            http,
+            s3,
+            tmp_path: _,
+        } = self
+        else {
+            return Ok(());
+        };
+
+        upload(http, &s3.creds(), &s3.bucket()?, digests, reader).await
+    }
 }
 
 #[derive(Debug, Clone)]
