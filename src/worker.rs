@@ -251,6 +251,7 @@ pub async fn run(args: &args::Worker) -> Result<()> {
         fs_tmp: args.tmp.path.to_string(),
     };
 
+    info!("Successfully started worker");
     loop {
         if let Some(task) = worker.db.get_random_task().await? {
             info!("task={task:?}");
