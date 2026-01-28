@@ -1,0 +1,4 @@
+DROP INDEX sbom_refs_idx_from_archive_path;
+DROP INDEX aliases_idx_to_from_forward;
+DROP INDEX sbom_refs_idx_chksum_strain_from_path;
+DROP INDEX refs_idx_search_package_id_desc;
