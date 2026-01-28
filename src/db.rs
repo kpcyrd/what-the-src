@@ -497,6 +497,37 @@ impl Client {
         Ok(rows)
     }
 
+    pub async fn get_bucket_object(&self, key: &str) -> Result<Option<BucketObject>> {
+        let result = sqlx::query_as::<_, BucketObject>(
+            "SELECT *
+            FROM bucket
+            WHERE key = $1",
+        )
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
+    pub async fn insert_bucket_object(
+        &self,
+        key: &str,
+        compressed_size: i64,
+        uncompressed_size: i64,
+    ) -> Result<()> {
+        let _result = sqlx::query(
+            "INSERT INTO bucket (key, compressed_size, uncompressed_size)
+            VALUES ($1, $2, $3)
+            ON CONFLICT DO NOTHING",
+        )
+        .bind(key)
+        .bind(compressed_size)
+        .bind(uncompressed_size)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_stats(&self, sql: &str, param: Option<i64>) -> Result<Vec<(String, i64)>> {
         let mut result = sqlx::query(sql).bind(param.unwrap_or(0)).fetch(&self.pool);
 
@@ -839,6 +870,15 @@ pub struct Package {
     pub vendor: String,
     pub package: String,
     pub version: String,
+}
+
+#[derive(sqlx::FromRow, Debug, Serialize)]
+pub struct BucketObject {
+    pub key: String,
+    pub compressed_size: i64,
+    pub uncompressed_size: i64,
+    #[serde(skip)]
+    pub created_at: DateTime<Utc>,
 }
 
 #[cfg(test)]

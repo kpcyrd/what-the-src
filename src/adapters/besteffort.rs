@@ -8,6 +8,7 @@ use tokio::io::{self, AsyncSeek, AsyncWrite, SeekFrom};
 pub struct BestEffortWriter<W> {
     writer: W,
     error: Option<io::Error>,
+    size: u64,
 }
 
 impl<W> BestEffortWriter<W> {
@@ -15,6 +16,7 @@ impl<W> BestEffortWriter<W> {
         Self {
             writer,
             error: None,
+            size: 0,
         }
     }
 
@@ -26,6 +28,11 @@ impl<W> BestEffortWriter<W> {
     /// Returns a reference to the error that caused the writer to fail, if any.
     pub fn error(&self) -> Option<&io::Error> {
         self.error.as_ref()
+    }
+
+    /// Returns the total number of bytes written
+    pub fn size(&self) -> u64 {
+        self.size
     }
 
     /// Consumes the wrapper and returns the inner writer.
@@ -46,7 +53,10 @@ impl<W: AsyncWrite + Unpin> AsyncWrite for BestEffortWriter<W> {
         }
 
         match Pin::new(&mut self.writer).poll_write(cx, buf) {
-            Poll::Ready(Ok(n)) => Poll::Ready(Ok(n)),
+            Poll::Ready(Ok(n)) => {
+                self.size = self.size.saturating_add(n as u64);
+                Poll::Ready(Ok(n))
+            }
             Poll::Ready(Err(err)) => {
                 self.error = Some(err);
                 // Pretend we wrote everything to not propagate the error

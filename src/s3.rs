@@ -2,6 +2,7 @@ use crate::adapters::besteffort::BestEffortWriter;
 use crate::adapters::optional::OptionalWriter;
 use crate::args;
 use crate::chksums::Checksums;
+use crate::db;
 use crate::errors::*;
 use crate::s3_presign::{self, Credentials};
 use crate::utils::{self, HttpClient};
@@ -78,7 +79,9 @@ impl UploadClient {
 
     pub async fn upload<R: AsyncRead + Unpin + Send + 'static>(
         &self,
+        db: Option<&db::Client>,
         reader: R,
+        compressed_size: u64,
         digests: &Checksums,
     ) -> Result<()> {
         let Self::Enabled {
@@ -90,7 +93,29 @@ impl UploadClient {
             return Ok(());
         };
 
-        upload(http, &s3.creds(), &s3.bucket()?, digests, reader).await
+        // Check if already exists in database
+        let s3_key = &digests.sha256;
+        if let Some(db) = db
+            && db.get_bucket_object(s3_key).await?.is_some()
+        {
+            debug!(
+                "Object with checksum {} already exists in bucket, skipping upload",
+                digests.sha256
+            );
+            return Ok(());
+        }
+
+        // Upload to S3
+        upload(http, &s3.creds(), &s3.bucket()?, digests, reader).await?;
+
+        // Record in database
+        if let Some(db) = db {
+            let uncompressed_size = digests.size as i64;
+            db.insert_bucket_object(s3_key, compressed_size as i64, uncompressed_size)
+                .await?;
+        }
+
+        Ok(())
     }
 }
 

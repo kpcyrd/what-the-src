@@ -315,11 +315,14 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     }
 
     if let Some(reader) = writer.finish_rewind().await?.into_inner() {
+        let compressed_size = reader.size();
         if let Some(err) = reader.error() {
             error!("Error during upload buffering: {err:#}");
         } else {
             let reader = reader.into_inner();
-            upload.upload(reader, &summary.inner_digests).await?;
+            upload
+                .upload(db, reader, compressed_size, &summary.inner_digests)
+                .await?;
         }
     }
 
@@ -432,11 +435,13 @@ mod tests {
                 sha256: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
                 sha512: "sha512:d2d14d47a23f20ef522b76765b9feb80d6d66f06b97d8ba8cbabebdee483880d31cf0522eb318613d94a808cde4e8ef8860733f8bde41dd7c4fca3b82cd354eb".to_string(),
                 blake2b: "blake2b:601ba064ff937c07e0695408111694230af5eeef97bd3d783d619d88dcb4a434cebb38d2eb6fc7a3b9b36e9e76676c18ba237c3eea922fe7cf41d61bcf86f65a".to_string(),
+                size: 10240,
             },
             outer_digests: Checksums {
                 sha256: "sha256:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4".to_string(),
                 sha512: "sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370".to_string(),
                 blake2b: "blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533".to_string(),
+                size: data.len() as u64,
             },
             files: vec![
                 Entry {
