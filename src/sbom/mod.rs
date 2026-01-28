@@ -115,6 +115,10 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     db.get_ref(&chksum, cargo::VENDOR, &pkg.name, &pkg.version),
                 );
                 if has_artifact?.is_some() && has_ref?.is_some() {
+                    debug!(
+                        "Skipping because known cargo reference (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
                     continue;
                 }
 
@@ -149,32 +153,32 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     .unwrap_or(&pkg.name);
                 let version = &pkg.version;
 
-                match pkg.checksum {
-                    Some(chksum) if !chksum.starts_with("sha1:") => {
-                        let (has_artifact, has_ref) = tokio::join!(
-                            db.resolve_artifact(&chksum),
-                            db.get_ref(&chksum, yarn::VENDOR, &pkg.name, &pkg.version),
-                        );
-                        if has_artifact?.is_some() && has_ref?.is_some() {
-                            debug!(
-                                "Skipping because known yarn reference (package={:?} version={:?} chksum={:?})",
-                                pkg.name, pkg.version, chksum
-                            );
-                            continue;
-                        }
-                    }
-                    _ => {
-                        let r = db
-                            .get_named_ref(yarn::VENDOR, &pkg.name, &pkg.version)
-                            .await?;
-                        if r.is_some() {
-                            debug!(
-                                "Skipping because known yarn reference (despite no checksum: package={:?} version={:?})",
-                                pkg.name, pkg.version
-                            );
-                            continue;
-                        }
-                    }
+                let Some(chksum) = pkg.checksum else {
+                    info!(
+                        "Refusing yarn reference without checksum (package={:?} version={:?})",
+                        pkg.name, pkg.version
+                    );
+                    continue;
+                };
+
+                if chksum.starts_with("sha1:") {
+                    info!(
+                        "Refusing yarn reference with weak checksum (sha1) (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
+                    continue;
+                }
+
+                let (has_artifact, has_ref) = tokio::join!(
+                    db.resolve_artifact(&chksum),
+                    db.get_ref(&chksum, yarn::VENDOR, &pkg.name, &pkg.version),
+                );
+                if has_artifact?.is_some() && has_ref?.is_some() {
+                    debug!(
+                        "Skipping because known yarn reference (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
+                    continue;
                 }
 
                 let url =
