@@ -10,6 +10,8 @@ use digest::Digest;
 use futures::stream::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use std::cmp;
+use std::mem::MaybeUninit;
 use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{self, AsyncRead, AsyncReadExt, ReadBuf};
@@ -143,16 +145,33 @@ async fn stream_content<R: AsyncRead + Unpin>(
     let mut buf = [0; 4096];
     let mut sha256 = Sha256::new();
 
+    let mut magic_bytes = [MaybeUninit::uninit(); 16];
+    let mut magic_bytes = ReadBuf::uninit(&mut magic_bytes);
+
     loop {
         let n = entry.read(&mut buf).await?;
         if n == 0 {
             break;
         }
         let buf = &buf[..n];
+
+        // If this is still the first few bytes, capture them for magic number detection
+        if magic_bytes.remaining() > 0 {
+            let to_copy = cmp::min(magic_bytes.remaining(), buf.len());
+            magic_bytes.put_slice(&buf[..to_copy]);
+        }
+
+        // Update the hasher
         sha256.update(buf);
+
+        // Collect data if requested
         if let Some(data) = &mut data {
             data.extend(buf);
         }
+    }
+
+    if magic_bytes.filled().starts_with(b"\x7FELF") {
+        warn!("Detected ELF binary in tar entry");
     }
 
     let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
@@ -499,5 +518,50 @@ mod tests {
             ],
             sbom_refs: vec![],
         });
+    }
+
+    #[tokio::test]
+    async fn test_stream_content() {
+        let data = b"\x7FELFhello world" as &[u8];
+
+        // generate a tar file containing `data`
+        let buf = {
+            let mut tar = tokio_tar::Builder::new(Vec::new());
+            let mut header = tokio_tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            tar.append_data(&mut header, "foo.txt", data).await.unwrap();
+            tar.finish().await.unwrap();
+            tar.into_inner().await.unwrap()
+        };
+
+        // Process the tar file
+        let summary = stream_data(None, &UploadClient::disabled(), &buf[..], None)
+            .await
+            .unwrap();
+        assert_eq!(
+            summary,
+            TarSummary {
+                inner_digests: summary.inner_digests.clone(),
+                outer_digests: summary.inner_digests.clone(),
+                files: vec![Entry {
+                    path: "foo.txt".to_string(),
+                    digest: Some(
+                        "sha256:486a9cd8993e8561810f3ee8d846bfb64c37b7ed4940317ecb32b95bf1534fdd"
+                            .to_string()
+                    ),
+                    metadata: Metadata {
+                        mode: Some("0o644".to_string()),
+                        links_to: None,
+                        mtime: Some(0),
+                        uid: None,
+                        username: Some("".to_string()),
+                        gid: None,
+                        groupname: Some("".to_string()),
+                    }
+                }],
+                sbom_refs: vec![],
+            }
+        );
     }
 }
