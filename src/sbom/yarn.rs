@@ -18,6 +18,18 @@ impl YarnLock {
         for entry in yarn.entries {
             let official_registry = entry.resolved.starts_with("https://registry.yarnpkg.com/");
 
+            // Extract the URL without the integrity fragment (if present)
+            let url = entry.resolved;
+            let url = entry
+                .resolved
+                .split_once('#')
+                .map(|(url, _)| url)
+                .unwrap_or(url);
+            let url = Some(url)
+                .filter(|url| url.starts_with("https://"))
+                .map(String::from);
+
+            // Extract the checksum in our format (if possible)
             let checksum = if let Some((family, value)) = entry.integrity.split_once('-') {
                 let digest = hex::encode(BASE64.decode(value.as_bytes())?);
                 Some(format!("{family}:{digest}"))
@@ -25,11 +37,10 @@ impl YarnLock {
                 None
             };
 
-            // TODO: use entry.resolved as url
-
             packages.push_back(Package {
                 name: entry.name.to_string(),
                 version: entry.version.to_string(),
+                url,
                 checksum,
                 official_registry,
             });
@@ -92,6 +103,11 @@ mod tests {
   resolved "https://registry.yarnpkg.com/@types/json5/-/json5-0.0.29.tgz#ee28707ae94e11d2b827bcbe5270bcea7f3e71ee"
   integrity sha1-7ihweulOEdK4J7y+UnC86n8+ce4=
 
+caniuse-lite@^1.0.30001349, caniuse-lite@^1.0.30001541:
+  version "1.0.30001541"
+  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001541.tgz"
+  integrity sha512-bLOsqxDgTqUBkzxbNlSBt8annkDpQB9NdzdTbO2ooJ+eC/IQcvDspDc058g84ejCelF7vHUx57KIOjEecOHXaw==
+
 write-file-atomic@^5.0.0:
   version "5.0.0"
   resolved "https://registry.yarnpkg.com/write-file-atomic/-/write-file-atomic-5.0.0.tgz#54303f117e109bf3d540261125c8ea5a7320fab0"
@@ -108,42 +124,56 @@ write-file-atomic@^5.0.0:
                 Package {
                     name: "7zip-bin".to_string(),
                     version: "5.1.1".to_string(),
+                    url: Some("https://registry.yarnpkg.com/7zip-bin/-/7zip-bin-5.1.1.tgz".to_string()),
                     checksum: Some("sha512:b003f82e575e58dcf494dce64e2adddee59f1435964de83a57f32c9b2c8b47d5f589dc0a056220b7f66f8a7a9095d266dcb79c284b357a691baae3ba3c288b55" .to_string()),
                     official_registry: true,
                 },
                 Package {
                     name: "@aashutoshrathi/word-wrap".to_string(),
                     version: "1.2.6".to_string(),
+                    url: Some("https://registry.yarnpkg.com/@aashutoshrathi/word-wrap/-/word-wrap-1.2.6.tgz".to_string()),
                     checksum: Some("sha512:d588ecd92bccf137e5111fce0f770e8e15963996f9f00dadef0a44d92f577c161388897e5c58501b66e3cb83eed48f8402508d533443603745c056142af5dc20".to_string()),
                     official_registry: true,
                 },
                 Package {
                     name: "@adobe/css-tools".to_string(),
                     version: "4.3.2".to_string(),
+                    url: Some("https://registry.yarnpkg.com/@adobe/css-tools/-/css-tools-4.3.2.tgz".to_string()),
                     checksum: Some("sha512:0c0e5ad42d200ffa4b3af86fdf760cadb7f614ade8533c0d97da0e26a1385d58ee12db7a5c86a445cb1dede2e23923e4a7591345018809303c70aadafef15b8f".to_string()),
                     official_registry: true,
                 },
                 Package {
                     name: "@protobufjs/fetch".to_string(),
                     version: "1.1.0".to_string(),
+                    url: Some("https://registry.yarnpkg.com/@protobufjs/fetch/-/fetch-1.1.0.tgz".to_string()),
                     checksum: None,
                     official_registry: true,
                 },
                 Package {
                     name: "@protobufjs/float".to_string(),
                     version: "1.0.2".to_string(),
+                    url: Some("https://registry.yarnpkg.com/@protobufjs/float/-/float-1.0.2.tgz".to_string()),
                     checksum: None,
                     official_registry: true,
                 },
                 Package {
                     name: "@types/json5".to_string(),
                     version: "0.0.29".to_string(),
+                    url: Some("https://registry.yarnpkg.com/@types/json5/-/json5-0.0.29.tgz".to_string()),
                     checksum: Some("sha1:ee28707ae94e11d2b827bcbe5270bcea7f3e71ee".to_string()),
                     official_registry: true,
                 },
                 Package {
+                    name: "caniuse-lite".to_string(),
+                    version: "1.0.30001541".to_string(),
+                    url: Some("https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001541.tgz".to_string()),
+                    checksum: Some("sha512:6cb3acab10e04ea501933c5b365481b7c6a79e40e9401f4d7737536ceda8a09f9e0bf21072f0eca43734e7c83ce1e8c27a517bbc7531e7b2883a311e70e1d76b" .to_string()),
+                    official_registry: false,
+                },
+                Package {
                     name: "write-file-atomic".to_string(),
                     version: "5.0.0".to_string(),
+                    url: Some("https://registry.yarnpkg.com/write-file-atomic/-/write-file-atomic-5.0.0.tgz".to_string()),
                     checksum: Some("sha512:47b3583271d2955e362b9e25c18f65bd6e8c9d29b51d226a64bdf1892822f44efffc561a23be2bd86d2b77efd7e9500c90711dcf141a5391d4397594cf9900ff" .to_string()),
                     official_registry: true,
                 },
