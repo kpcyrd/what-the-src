@@ -101,7 +101,9 @@ checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
                 Package {
                     name: "aho-corasick".to_string(),
                     version: "1.1.2".to_string(),
-                    url: Some("https://crates.io/api/v1/crates/aho-corasick/1.1.2/download".to_string()),
+                    url: Some(
+                        "https://crates.io/api/v1/crates/aho-corasick/1.1.2/download".to_string()
+                    ),
                     checksum: Some(
                         "sha256:b2969dcb958b36655471fc61f7e416fa76033bdd4bfed0678d8fee1e2d07a1f0"
                             .to_string()

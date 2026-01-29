@@ -65,6 +65,10 @@ impl Sbom {
                 let sbom = sbom.parse()?;
                 sbom.collect::<Result<Vec<_>>>()
             }
+            Sbom::Composer(sbom) => {
+                let sbom = sbom.parse()?;
+                sbom.collect::<Result<Vec<_>>>()
+            }
             Sbom::Yarn(sbom) => {
                 let sbom = sbom.parse()?;
                 Ok(sbom.collect::<Vec<_>>())
@@ -107,7 +111,7 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
             for pkg in sbom.to_packages()? {
                 let Some(chksum) = pkg.checksum else { continue };
 
-                let Some(url) = pkg.url  else {
+                let Some(url) = pkg.url else {
                     continue;
                 };
 
@@ -135,6 +139,37 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                             version: pkg.version.to_string(),
                         }),
                     },
+                )?)
+                .await?;
+            }
+        }
+        composer::STRAIN => {
+            for pkg in sbom.to_packages()? {
+                let Some(chksum) = pkg.checksum else {
+                    continue;
+                };
+                let Some(url) = pkg.url else {
+                    continue;
+                };
+
+                let has_artifact = db.resolve_artifact(&chksum).await?;
+                if has_artifact.is_some() {
+                    debug!(
+                        "Skipping because known composer reference (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
+                    continue;
+                }
+
+                let Some(commit) = chksum.strip_prefix("git:") else {
+                    continue;
+                };
+                let url = format!("git+{url}#commit={commit}");
+
+                info!("Adding git remote: {url:?}");
+                db.insert_task(&db::Task::new(
+                    format!("git-clone:{url}"),
+                    &db::TaskData::GitSnapshot { url },
                 )?)
                 .await?;
             }
