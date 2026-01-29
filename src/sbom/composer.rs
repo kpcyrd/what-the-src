@@ -36,12 +36,17 @@ impl Iterator for ParsedLock {
 
 impl From<Package> for sbom::Package {
     fn from(sbom: Package) -> Self {
-        let valid_git_ref =
-            sbom.source.src_type == "git" && sbom.source.url.starts_with("https://");
+        let mut url = None;
+        let mut checksum = None;
 
-        let url = valid_git_ref.then(|| sbom.source.url.clone());
+        if let Some(source) = sbom.source {
+            let valid_git_ref = source.src_type == "git" && source.url.starts_with("https://");
 
-        let checksum = valid_git_ref.then(|| format!("git:{}", sbom.source.reference));
+            if valid_git_ref {
+                url = Some(source.url.clone());
+                checksum = Some(format!("git:{}", source.reference));
+            }
+        }
 
         Self {
             name: sbom.name,
@@ -57,7 +62,7 @@ impl From<Package> for sbom::Package {
 pub struct Package {
     pub name: String,
     pub version: String,
-    pub source: Source,
+    pub source: Option<Source>,
 }
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -411,6 +416,100 @@ mod tests {
                     official_registry: true
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn test_parse_composer_lock_workspace_no_src() {
+        let data = r#"
+{
+    "_readme": [
+        "This file locks the dependencies of your project to a known state",
+        "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
+        "This file is @generated automatically"
+    ],
+    "content-hash": "4a8ad22691622ad26b2cee49770e911f",
+    "packages": [
+        {
+            "name": "dagger/dagger",
+            "version": "dev-main",
+            "dist": {
+                "type": "path",
+                "url": "./sdk",
+                "reference": "ce707d73133d8342115af21bdbbb428c0e22600b"
+            },
+            "require": {
+                "carnage/php-graphql-client": "^1.14.1",
+                "jms/serializer": "^3.30",
+                "php": ">=8.2",
+                "psr/log": "^3.0",
+                "roave/better-reflection": "^6.25",
+                "symfony/console": "^6.3|^7.0",
+                "symfony/process": "^6.3|^7.0"
+            },
+            "require-dev": {
+                "mikey179/vfsstream": "^1.6",
+                "nette/php-generator": "^4.1",
+                "phpunit/phpunit": "^11.0",
+                "squizlabs/php_codesniffer": "^3.10.2",
+                "webonyx/graphql-php": "^15.8"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Dagger\\": [
+                        "src/",
+                        "generated/"
+                    ]
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Dagger\\Tests\\": "tests/"
+                }
+            },
+            "license": [
+                "Apache-2.0"
+            ],
+            "description": "Dagger PHP SDK",
+            "homepage": "https://dagger.io",
+            "transport-options": {
+                "relative": true
+            }
+        }
+    ],
+    "packages-dev": [],
+    "aliases": [],
+    "minimum-stability": "dev",
+    "stability-flags": {
+        "dagger/dagger": 20
+    },
+    "prefer-stable": false,
+    "prefer-lowest": false,
+    "platform": {
+        "php": "^8.1"
+    },
+    "platform-dev": [],
+    "platform-overrides": {
+        "php": "8.3.7"
+    },
+    "plugin-api-version": "2.6.0"
+}
+"#;
+        let composer = Sbom::new("composer-lock", data.to_string()).unwrap();
+        let list = composer.to_packages().unwrap();
+        assert_eq!(
+            list,
+            [Package {
+                name: "dagger/dagger".to_string(),
+                version: "dev-main".to_string(),
+                checksum: None,
+                url: None,
+                official_registry: true
+            }]
         );
     }
 }
