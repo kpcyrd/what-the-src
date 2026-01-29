@@ -65,6 +65,10 @@ impl Sbom {
                 let sbom = sbom.parse()?;
                 sbom.collect::<Result<Vec<_>>>()
             }
+            Sbom::Composer(sbom) => {
+                let sbom = sbom.parse()?;
+                sbom.collect::<Result<Vec<_>>>()
+            }
             Sbom::Yarn(sbom) => {
                 let sbom = sbom.parse()?;
                 Ok(sbom.collect::<Vec<_>>())
@@ -78,6 +82,7 @@ impl Sbom {
 pub struct Package {
     pub name: String,
     pub version: String,
+    pub url: Option<String>,
     pub checksum: Option<String>,
     pub official_registry: bool,
 }
@@ -106,9 +111,9 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
             for pkg in sbom.to_packages()? {
                 let Some(chksum) = pkg.checksum else { continue };
 
-                if !pkg.official_registry {
+                let Some(url) = pkg.url else {
                     continue;
-                }
+                };
 
                 let (has_artifact, has_ref) = tokio::join!(
                     db.resolve_artifact(&chksum),
@@ -122,11 +127,6 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     continue;
                 }
 
-                let url = format!(
-                    "https://crates.io/api/v1/crates/{}/{}/download",
-                    url_escape::encode_component(&pkg.name),
-                    url_escape::encode_component(&pkg.version),
-                );
                 info!("Adding download task url={url:?}");
                 db.insert_task(&db::Task::new(
                     format!("fetch:{url}"),
@@ -143,15 +143,42 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                 .await?;
             }
         }
+        composer::STRAIN => {
+            for pkg in sbom.to_packages()? {
+                let Some(chksum) = pkg.checksum else {
+                    continue;
+                };
+                let Some(url) = pkg.url else {
+                    continue;
+                };
+
+                let has_artifact = db.resolve_artifact(&chksum).await?;
+                if has_artifact.is_some() {
+                    debug!(
+                        "Skipping because known composer reference (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
+                    continue;
+                }
+
+                let Some(commit) = chksum.strip_prefix("git:") else {
+                    continue;
+                };
+                let git_url = format!("git+{url}#commit={commit}");
+
+                info!("Adding git remote: {git_url:?}");
+                db.insert_task(&db::Task::new(
+                    format!("git-clone:{git_url}"),
+                    &db::TaskData::GitSnapshot { url: git_url },
+                )?)
+                .await?;
+            }
+        }
         yarn::STRAIN => {
             for pkg in sbom.to_packages()? {
-                let full_name = &pkg.name;
-                let suffix = pkg
-                    .name
-                    .rsplit_once('/')
-                    .map(|(_, x)| x)
-                    .unwrap_or(&pkg.name);
-                let version = &pkg.version;
+                let Some(url) = pkg.url else {
+                    continue;
+                };
 
                 let Some(chksum) = pkg.checksum else {
                     info!(
@@ -180,9 +207,6 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     );
                     continue;
                 }
-
-                let url =
-                    format!("https://registry.yarnpkg.com/{full_name}/-/{suffix}-{version}.tgz");
 
                 info!("Adding download task url={url:?}");
                 db.insert_task(&db::Task::new(
