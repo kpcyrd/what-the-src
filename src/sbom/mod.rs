@@ -164,12 +164,12 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                 let Some(commit) = chksum.strip_prefix("git:") else {
                     continue;
                 };
-                let url = format!("git+{url}#commit={commit}");
+                let git_url = format!("git+{url}#commit={commit}");
 
-                info!("Adding git remote: {url:?}");
+                info!("Adding git remote: {git_url:?}");
                 db.insert_task(&db::Task::new(
-                    format!("git-clone:{url}"),
-                    &db::TaskData::GitSnapshot { url },
+                    format!("git-clone:{git_url}"),
+                    &db::TaskData::GitSnapshot { url: git_url },
                 )?)
                 .await?;
             }

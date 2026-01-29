@@ -20,11 +20,7 @@ impl YarnLock {
 
             // Extract the URL without the integrity fragment (if present)
             let url = entry.resolved;
-            let url = entry
-                .resolved
-                .split_once('#')
-                .map(|(url, _)| url)
-                .unwrap_or(url);
+            let url = url.split_once('#').map(|(url, _)| url).unwrap_or(url);
             let url = Some(url)
                 .filter(|url| url.starts_with("https://"))
                 .map(String::from);
