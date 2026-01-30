@@ -1,5 +1,5 @@
 use std::{mem::MaybeUninit, pin::Pin, task::Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf};
 
 pub const SIZE: usize = 4096;
 
@@ -100,7 +100,7 @@ impl<'a, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> AsyncRead for TeeStream<'a
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
         buf: &mut ReadBuf<'_>,
-    ) -> std::task::Poll<std::io::Result<()>> {
+    ) -> std::task::Poll<io::Result<()>> {
         let this = self.get_mut();
 
         // If we have buffered data from a previous read, try to finish writing it
@@ -128,8 +128,7 @@ impl<'a, R: AsyncRead + Unpin, W: AsyncWrite + Unpin> AsyncRead for TeeStream<'a
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io;
-    use std::task::Context;
+    use crate::adapters::throttle::PartialWriter;
     use tokio::io::AsyncReadExt;
 
     #[tokio::test]
@@ -198,41 +197,6 @@ mod tests {
 
         assert_eq!(&read_buf, src);
         assert_eq!(&copy, src);
-    }
-
-    // Mock writer that only writes partial data
-    struct PartialWriter {
-        data: Vec<u8>,
-        chunk_size: usize,
-    }
-
-    impl PartialWriter {
-        fn new(chunk_size: usize) -> Self {
-            Self {
-                data: Vec::new(),
-                chunk_size,
-            }
-        }
-    }
-
-    impl AsyncWrite for PartialWriter {
-        fn poll_write(
-            mut self: Pin<&mut Self>,
-            _cx: &mut Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
-            let to_write = buf.len().min(self.chunk_size);
-            self.data.extend_from_slice(&buf[..to_write]);
-            Poll::Ready(Ok(to_write))
-        }
-
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
-
-        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-            Poll::Ready(Ok(()))
-        }
     }
 
     #[tokio::test]
