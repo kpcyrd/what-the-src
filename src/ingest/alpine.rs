@@ -1,6 +1,6 @@
-use crate::apkbuild;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
+use crate::parsers::apkbuild;
 use crate::utils;
 use tokio::io::{AsyncRead, AsyncReadExt};
 

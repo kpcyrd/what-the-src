@@ -1,7 +1,7 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
-use crate::pkgbuild;
+use crate::parsers::pkgbuild;
 use crate::sbom;
 use crate::utils;
 use async_compression::tokio::bufread::GzipDecoder;

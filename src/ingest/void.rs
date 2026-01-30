@@ -1,8 +1,8 @@
 use crate::args;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
+use crate::parsers::void_template;
 use crate::utils;
-use crate::void_template;
 use async_compression::tokio::bufread::GzipDecoder;
 use futures::StreamExt;
 use tokio::io::{self, AsyncRead, AsyncReadExt};

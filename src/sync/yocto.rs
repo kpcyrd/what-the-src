@@ -1,8 +1,8 @@
 use crate::args;
 use crate::db;
 use crate::errors::*;
+use crate::parsers::yocto;
 use crate::utils;
-use crate::yocto;
 use async_compression::tokio::bufread::GzipDecoder;
 use futures::StreamExt;
 use std::path::Path;

@@ -1,8 +1,8 @@
-use crate::apt;
 use crate::args;
 use crate::compression::Decompressor;
 use crate::db::{self, Task, TaskData};
 use crate::errors::*;
+use crate::parsers::apt;
 use crate::utils;
 use apt_parser::Release;
 use tokio::io::{self, AsyncReadExt};
