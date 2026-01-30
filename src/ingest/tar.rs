@@ -209,23 +209,14 @@ impl<'a> TarSummaryBuilder<'a> {
             && let Some(db) = &self.db
             && let Ok(data) = String::from_utf8(data)
         {
-            let sbom = sbom::Sbom::new(sbom, data)?;
-            let chksum = db.insert_sbom(&sbom).await?;
-            let strain = sbom.strain();
-            info!("Inserted sbom {strain:?}: {digest:?}");
-            self.sbom_refs.push(sbom::Ref {
-                strain,
-                chksum: chksum.clone(),
-                path: entry_key.path.clone(),
-            });
-            db.insert_task(&db::Task::new(
-                format!("sbom:{strain}:{chksum}"),
-                &db::TaskData::IndexSbom {
-                    strain: Some(strain.to_string()),
-                    chksum,
-                },
-            )?)
-            .await?;
+            // Insert into database, queue followup jobs
+            let sbom_ref = sbom::Sbom::new(sbom, data)?
+                .ingest(db)
+                .await?
+                .into_ref(entry_key.path.clone());
+
+            debug!("Adding sbom ref for entry: {:?}", sbom_ref.path);
+            self.sbom_refs.push(sbom_ref);
         }
 
         Ok(digest)

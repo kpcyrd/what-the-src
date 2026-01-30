@@ -5,6 +5,7 @@ pub mod npm;
 pub mod yarn;
 
 use crate::args;
+use crate::chksums;
 use crate::db;
 use crate::errors::*;
 use serde::Serialize;
@@ -59,6 +60,12 @@ impl Sbom {
         }
     }
 
+    pub async fn ingest<'a>(&'a self, db: &db::Client) -> Result<HashedSbom<'a>> {
+        let hashed = HashedSbom::new(self);
+        hashed.ingest(db).await?;
+        Ok(hashed)
+    }
+
     pub fn to_packages(&self) -> Result<Vec<Package>> {
         match self {
             Sbom::Cargo(sbom) => {
@@ -74,6 +81,47 @@ impl Sbom {
                 Ok(sbom.collect::<Vec<_>>())
             }
             _ => Ok(vec![]),
+        }
+    }
+}
+
+pub struct HashedSbom<'a> {
+    pub sbom: &'a Sbom,
+    pub chksum: String,
+}
+
+impl<'a> HashedSbom<'a> {
+    pub fn new(sbom: &'a Sbom) -> Self {
+        let chksum = chksums::sha256(sbom.data().as_bytes());
+        Self { sbom, chksum }
+    }
+
+    pub async fn ingest(&'a self, db: &db::Client) -> Result<&'a Self> {
+        let strain = self.sbom.strain();
+        let chksum = &self.chksum;
+        debug!("Checking for existing sbom {strain:?}: {chksum:?}");
+
+        if db.get_sbom_with_strain(chksum, strain).await?.is_none() {
+            db.insert_sbom(self).await?;
+            info!("Inserted new sbom {strain:?}: {chksum:?}");
+            db.insert_task(&db::Task::new(
+                format!("sbom:{strain}:{chksum}"),
+                &db::TaskData::IndexSbom {
+                    strain: Some(strain.to_string()),
+                    chksum: chksum.to_string(),
+                },
+            )?)
+            .await?;
+        }
+
+        Ok(self)
+    }
+
+    pub fn into_ref(self, path: String) -> Ref {
+        Ref {
+            strain: self.sbom.strain(),
+            chksum: self.chksum,
+            path,
         }
     }
 }
@@ -234,8 +282,9 @@ pub async fn run(args: &args::IngestSbom) -> Result<()> {
 
     let data = fs::read_to_string(&args.file).await?;
     let sbom = Sbom::new(&args.strain, data)?;
+    let hashed = HashedSbom::new(&sbom);
 
-    db.insert_sbom(&sbom).await?;
+    db.insert_sbom(&hashed).await?;
     index(&db, &sbom).await?;
 
     Ok(())

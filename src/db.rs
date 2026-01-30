@@ -1,4 +1,3 @@
-use crate::chksums;
 use crate::chksums::Checksums;
 use crate::errors::*;
 use crate::ingest;
@@ -393,19 +392,18 @@ impl Client {
         Ok(rows)
     }
 
-    pub async fn insert_sbom(&self, sbom: &sbom::Sbom) -> Result<String> {
-        let chksum = chksums::sha256(sbom.data().as_bytes());
+    pub async fn insert_sbom(&self, hashed: &sbom::HashedSbom<'_>) -> Result<()> {
         let _result = sqlx::query(
             "INSERT INTO sboms (strain, chksum, data)
             VALUES ($1, $2, $3)
             ON CONFLICT DO NOTHING",
         )
-        .bind(sbom.strain())
-        .bind(&chksum)
-        .bind(sbom.data())
+        .bind(hashed.sbom.strain())
+        .bind(&hashed.chksum)
+        .bind(hashed.sbom.data())
         .execute(&self.pool)
         .await?;
-        Ok(chksum)
+        Ok(())
     }
 
     pub async fn get_sbom(&self, chksum: &str) -> Result<Option<Sbom>> {
