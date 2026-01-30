@@ -36,6 +36,10 @@ impl<'a, R: AsyncRead + Unpin> ReadAhead<'a, R> {
 
         Ok(self.buf.filled())
     }
+
+    pub fn into_inner(self) -> R {
+        self.reader
+    }
 }
 
 impl<'a, R: AsyncRead + Unpin> AsyncRead for ReadAhead<'a, R> {
