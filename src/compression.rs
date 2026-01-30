@@ -1,17 +1,15 @@
 use crate::adapters::readahead::ReadAhead;
 use crate::errors::*;
 use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::Poll;
 use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
 
-pub async fn auto<'a, R: AsyncRead + Unpin>(
+pub async fn auto<R: AsyncRead + Unpin>(
     reader: R,
-    readahead_buf: &'a mut [MaybeUninit<u8>],
     compression: Option<&str>,
-) -> Result<(Decompressor<BufReader<ReadAhead<'a, R>>>, &'static str)> {
-    let mut reader = ReadAhead::new(reader, ReadBuf::uninit(readahead_buf));
+) -> Result<(Decompressor<BufReader<ReadAhead<R>>>, &'static str)> {
+    let mut reader = ReadAhead::new(reader);
     let magic = reader.peek().await?;
 
     let compression = if let Some(compression) = compression {

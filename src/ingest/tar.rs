@@ -1,7 +1,4 @@
-use crate::adapters::{
-    readahead,
-    tee::{self, TeeStream},
-};
+use crate::adapters::tee::{self, TeeStream};
 use crate::args;
 use crate::chksums::{Checksums, Hasher};
 use crate::compression;
@@ -294,8 +291,7 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let reader = Hasher::new(reader);
 
     // Setup decompressor
-    let mut readahead_buf = readahead::buf();
-    let (reader, outer_label) = compression::auto(reader, &mut readahead_buf, compression).await?;
+    let (reader, outer_label) = compression::auto(reader, compression).await?;
     let reader = Hasher::new(reader);
 
     // Prepare s3 filesystem buffer
