@@ -171,7 +171,7 @@ async fn stream_content<R: AsyncRead + Unpin>(
     }
 
     if magic_bytes.filled().starts_with(b"\x7FELF") {
-        warn!("Detected ELF binary in tar entry");
+        debug!("Detected ELF binary in tar entry");
     }
 
     let digest = format!("sha256:{}", hex::encode(sha256.finalize()));
