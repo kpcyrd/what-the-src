@@ -7,14 +7,12 @@ use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
 
 pub async fn auto<R: AsyncRead + Unpin>(
     reader: R,
-    compression: Option<&str>,
+    _compression: Option<&str>,
 ) -> Result<(Decompressor<BufReader<ReadAhead<R>>>, &'static str)> {
     let mut reader = ReadAhead::new(reader);
     let magic = reader.peek().await?;
 
-    let compression = if let Some(compression) = compression {
-        Some(compression)
-    } else if magic.starts_with(b"\x1F\x8B") {
+    let compression = if magic.starts_with(b"\x1F\x8B") {
         Some("gz")
     } else if magic.starts_with(b"\xFD\x37\x7A\x58\x5A") {
         Some("xz")
