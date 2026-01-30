@@ -1,7 +1,39 @@
+use crate::adapters::readahead::ReadAhead;
+use crate::errors::*;
 use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder};
 use std::pin::Pin;
 use std::task::Poll;
-use tokio::io::{self, AsyncBufRead, AsyncRead, ReadBuf};
+use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
+
+pub async fn auto<R: AsyncRead + Unpin>(
+    reader: R,
+    _compression: Option<&str>,
+) -> Result<(Decompressor<BufReader<ReadAhead<R>>>, &'static str)> {
+    let mut reader = ReadAhead::new(reader);
+    let magic = reader.peek().await?;
+
+    let compression = if magic.starts_with(b"\x1F\x8B") {
+        Some("gz")
+    } else if magic.starts_with(b"\xFD\x37\x7A\x58\x5A") {
+        Some("xz")
+    } else if magic.starts_with(b"\x42\x5A\x68") {
+        Some("bz2")
+    } else {
+        None
+    };
+
+    // Setup selected decompressor
+    let reader = io::BufReader::new(reader);
+    let (reader, outer_label) = match compression {
+        Some("gz") => (Decompressor::gz(reader), "gz(tar)"),
+        Some("xz") => (Decompressor::xz(reader), "xz(tar)"),
+        Some("bz2") => (Decompressor::bz2(reader), "bz2(tar)"),
+        None => (Decompressor::Plain(reader), "tar"),
+        unknown => panic!("Unknown compression algorithm: {unknown:?}"),
+    };
+
+    Ok((reader, outer_label))
+}
 
 pub enum Decompressor<R> {
     Plain(R),
