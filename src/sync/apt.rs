@@ -96,7 +96,6 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                                 format!("fetch:{url}"),
                                 &TaskData::FetchTar {
                                     url,
-                                    compression: None,
                                     success_ref: None,
                                 },
                             )?)

@@ -812,11 +812,10 @@ impl Task {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum TaskData {
     FetchTar {
         url: String,
-        compression: Option<String>,
         success_ref: Option<DownloadRef>,
     },
     PacmanGitSnapshot {
@@ -856,7 +855,7 @@ pub enum TaskData {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct DownloadRef {
     pub vendor: String,
     pub package: String,
@@ -905,5 +904,52 @@ mod tests {
         // test decompression
         let decompressed = decompress_json::<_, BTreeMap<String, String>>(&buf[..]).unwrap();
         assert_eq!(obj, decompressed);
+    }
+
+    #[test]
+    fn test_parse_fetch_task() {
+        let data = r#"
+        {
+            "FetchTar": {
+                "url": "https://example.com/somefile.tar.gz"
+            }
+        }"#;
+        let task_data: TaskData = serde_json::from_str(data).unwrap();
+        assert_eq!(
+            task_data,
+            TaskData::FetchTar {
+                url: "https://example.com/somefile.tar.gz".to_string(),
+                success_ref: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_fetch_task_old_format() {
+        // Still contains the compression key
+        let data = r#"
+        {
+            "FetchTar": {
+                "url": "https://example.com/somefile.tar.gz",
+                "compression": "gz",
+                "success_ref": {
+                    "vendor": "examplevendor",
+                    "package": "examplepackage",
+                    "version": "1.0.0"
+                }
+            }
+        }"#;
+        let task_data: TaskData = serde_json::from_str(data).unwrap();
+        assert_eq!(
+            task_data,
+            TaskData::FetchTar {
+                url: "https://example.com/somefile.tar.gz".to_string(),
+                success_ref: Some(DownloadRef {
+                    vendor: "examplevendor".to_string(),
+                    package: "examplepackage".to_string(),
+                    version: "1.0.0".to_string(),
+                }),
+            }
+        );
     }
 }

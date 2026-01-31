@@ -42,19 +42,14 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
             filename.to_string()
         };
 
-        // TODO: find a better solution for this, can we just autodetect all regardless of file name?
-        let compression = if filename.ends_with(".tar.gz")
+        // TODO: clean up this code to somewhere reusable
+        if !(filename.contains(".tar")
             || filename.ends_with(".tgz")
             || filename.ends_with(".crate")
+            || filename.ends_with(".txz")
+            || filename.ends_with(".tbz2")
+            || filename.ends_with(".tbz"))
         {
-            Some("gz")
-        } else if filename.ends_with(".tar.xz") {
-            Some("xz")
-        } else if filename.ends_with(".tar.bz2") {
-            Some("bz2")
-        } else if filename.ends_with(".tar") {
-            None
-        } else {
             continue;
         };
 
@@ -64,7 +59,7 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
         } else {
             (Some(db), upload)
         };
-        let summary = ingest::tar::stream_data(tar_db, upload, entry, compression).await?;
+        let summary = ingest::tar::stream_data(tar_db, upload, entry).await?;
 
         let r = db::Ref {
             chksum: summary.outer_digests.sha256.clone(),

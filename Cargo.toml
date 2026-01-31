@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 apt-parser = "1.0.6"
 astral-tokio-tar = "0.5"
-async-compression = { version = "0.4.8", features = ["tokio", "gzip", "xz", "bzip2", "zstd"] }
+async-compression = { version = "0.4.8", features = ["bzip2", "gzip", "lz4", "tokio", "xz", "zstd"] }
 async-stream = "0.3.5"
 async-tempfile = "0.7.0"
 blake2 = "0.10.6"

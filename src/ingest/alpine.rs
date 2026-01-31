@@ -37,7 +37,6 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
                 format!("fetch:{url}"),
                 &TaskData::FetchTar {
                     url: url.to_string(),
-                    compression: None,
                     success_ref: None,
                 },
             )?)
