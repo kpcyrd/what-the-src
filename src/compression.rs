@@ -1,6 +1,8 @@
 use crate::adapters::readahead::ReadAhead;
 use crate::errors::*;
-use async_compression::tokio::bufread::{BzDecoder, GzipDecoder, XzDecoder, ZstdDecoder};
+use async_compression::tokio::bufread::{
+    BzDecoder, GzipDecoder, Lz4Decoder, XzDecoder, ZstdDecoder,
+};
 use std::pin::Pin;
 use std::task::Poll;
 use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
@@ -24,6 +26,9 @@ pub async fn auto<R: AsyncRead + Unpin>(
     } else if magic.starts_with(b"\x28\xB5\x2F\xFD") {
         let reader = io::BufReader::new(reader);
         Decompressor::zstd(reader)
+    } else if magic.starts_with(b"\x04\x22\x4D\x18") {
+        let reader = io::BufReader::new(reader);
+        Decompressor::lz4(reader)
     } else {
         let reader = io::BufReader::new(reader);
         Decompressor::Plain(reader)
@@ -36,6 +41,7 @@ pub enum Decompressor<R> {
     Xz(XzDecoder<R>),
     Bz2(BzDecoder<R>),
     Zstd(ZstdDecoder<R>),
+    Lz4(Lz4Decoder<R>),
 }
 
 impl<R: AsyncBufRead> Decompressor<R> {
@@ -57,6 +63,10 @@ impl<R: AsyncBufRead> Decompressor<R> {
         Decompressor::Zstd(ZstdDecoder::new(reader))
     }
 
+    pub fn lz4(reader: R) -> Self {
+        Decompressor::Lz4(Lz4Decoder::new(reader))
+    }
+
     pub fn outer_label(&self) -> &'static str {
         match self {
             Decompressor::Plain(_) => "tar",
@@ -64,6 +74,7 @@ impl<R: AsyncBufRead> Decompressor<R> {
             Decompressor::Xz(_) => "xz(tar)",
             Decompressor::Bz2(_) => "bz2(tar)",
             Decompressor::Zstd(_) => "zstd(tar)",
+            Decompressor::Lz4(_) => "lz4(tar)",
         }
     }
 
@@ -74,6 +85,7 @@ impl<R: AsyncBufRead> Decompressor<R> {
             Decompressor::Xz(r) => r.into_inner(),
             Decompressor::Bz2(r) => r.into_inner(),
             Decompressor::Zstd(r) => r.into_inner(),
+            Decompressor::Lz4(r) => r.into_inner(),
         }
     }
 }
@@ -90,6 +102,7 @@ impl<R: AsyncBufRead + Unpin> AsyncRead for Decompressor<R> {
             Decompressor::Xz(r) => Pin::new(r).poll_read(cx, buf),
             Decompressor::Bz2(r) => Pin::new(r).poll_read(cx, buf),
             Decompressor::Zstd(r) => Pin::new(r).poll_read(cx, buf),
+            Decompressor::Lz4(r) => Pin::new(r).poll_read(cx, buf),
         }
     }
 }
@@ -203,6 +216,26 @@ mod tests {
         ];
         let reader = auto(&data[..]).await.unwrap();
         assert_eq!(reader.outer_label(), "zstd(tar)");
+        verify_tar(reader).await;
+    }
+
+    #[tokio::test]
+    async fn test_lz4() {
+        let data = [
+            0x04, 0x22, 0x4d, 0x18, 0x64, 0x40, 0xa7, 0x80, 0x00, 0x00, 0x00, 0x9f, 0x6f, 0x68,
+            0x61, 0x69, 0x2e, 0x74, 0x78, 0x74, 0x00, 0x01, 0x00, 0x48, 0x92, 0x30, 0x30, 0x30,
+            0x30, 0x36, 0x34, 0x34, 0x00, 0x30, 0x01, 0x00, 0x0c, 0x08, 0x00, 0x46, 0x30, 0x30,
+            0x32, 0x32, 0x0c, 0x00, 0x01, 0x18, 0x00, 0x8f, 0x37, 0x33, 0x36, 0x30, 0x00, 0x20,
+            0x30, 0x00, 0x01, 0x00, 0x50, 0x8f, 0x75, 0x73, 0x74, 0x61, 0x72, 0x20, 0x20, 0x00,
+            0x01, 0x00, 0xe4, 0x00, 0x00, 0x02, 0xff, 0x00, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64,
+            0x20, 0x61, 0x67, 0x61, 0x69, 0x6e, 0x21, 0x0a, 0x00, 0x01, 0x00, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfa, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0xd5, 0x61, 0x21, 0x20,
+        ];
+        let reader = auto(&data[..]).await.unwrap();
+        assert_eq!(reader.outer_label(), "lz4(tar)");
         verify_tar(reader).await;
     }
 }
