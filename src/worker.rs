@@ -39,11 +39,7 @@ impl Worker {
         let data = task.data()?;
 
         match data {
-            TaskData::FetchTar {
-                url,
-                compression,
-                success_ref,
-            } => {
+            TaskData::FetchTar { url, success_ref } => {
                 // After importing entire distros, this is the only software I struggle with.
                 // This clown browser:
                 //  - has >1 million source files
@@ -66,23 +62,9 @@ impl Worker {
                 info!("Fetching tar: {url:?}");
                 let reader = self.http.fetch(&url).await?;
 
-                // TODO: do this stuff on the fly
-                let compression = if let Some(compression) = &compression {
-                    Some(compression.as_str())
-                } else if url.ends_with(".gz") || url.ends_with(".tgz") {
-                    Some("gz")
-                } else if url.ends_with(".xz") {
-                    Some("xz")
-                } else if url.ends_with(".bz2") {
-                    Some("bz2")
-                } else {
-                    None
-                };
-
                 // If there's an "on success" hook, insert it
                 let summary =
-                    ingest::tar::stream_data(Some(&self.db), &self.upload, reader, compression)
-                        .await?;
+                    ingest::tar::stream_data(Some(&self.db), &self.upload, reader).await?;
                 if let Some(pkg) = success_ref {
                     let r = db::Ref {
                         chksum: summary.outer_digests.sha256,

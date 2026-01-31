@@ -285,13 +285,12 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     db: Option<&db::Client>,
     upload: &UploadClient,
     reader: R,
-    compression: Option<&str>,
 ) -> Result<TarSummary> {
     // Setup hasher of possibly compressed data
     let reader = Hasher::new(reader);
 
     // Setup decompressor
-    let (reader, outer_label) = compression::auto(reader, compression).await?;
+    let (reader, outer_label) = compression::auto(reader).await?;
     let reader = Hasher::new(reader);
 
     // Prepare s3 filesystem buffer
@@ -345,7 +344,7 @@ pub async fn run(args: &args::IngestTar) -> Result<()> {
         Box::new(io::stdin())
     };
 
-    stream_data(Some(&db), &upload, input, args.compression.as_deref()).await?;
+    stream_data(Some(&db), &upload, input).await?;
 
     Ok(())
 }
@@ -433,7 +432,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ingest_tar() {
-        let summary = stream_data(None, &UploadClient::disabled(), TAR_GZ, Some("gz"))
+        let summary = stream_data(None, &UploadClient::disabled(), TAR_GZ)
             .await
             .unwrap();
         assert_eq!(summary, TarSummary {
@@ -508,44 +507,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_ingest_tar_auto_detect() {
-        let mut summary = stream_data(None, &UploadClient::disabled(), TAR_GZ, None)
-            .await
-            .unwrap();
-        summary.files.truncate(1);
-        assert_eq!(summary, TarSummary {
-            inner_digests: Checksums {
-                sha256: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
-                sha512: "sha512:d2d14d47a23f20ef522b76765b9feb80d6d66f06b97d8ba8cbabebdee483880d31cf0522eb318613d94a808cde4e8ef8860733f8bde41dd7c4fca3b82cd354eb".to_string(),
-                blake2b: "blake2b:601ba064ff937c07e0695408111694230af5eeef97bd3d783d619d88dcb4a434cebb38d2eb6fc7a3b9b36e9e76676c18ba237c3eea922fe7cf41d61bcf86f65a".to_string(),
-                size: 10240,
-            },
-            outer_digests: Checksums {
-                sha256: "sha256:9390fb29874d4e70ae4e8379aa7fc396e0a44cacf8256aa8d87fdec9b56261d4".to_string(),
-                sha512: "sha512:8b981a89ec6735f0c1de0f7d58cbd30921b9fdf645b68330ab1080b2d563410acb3ae77881a2817438ca6405eaafbb62f131a371f0f0e5fcb91727310fb7a370".to_string(),
-                blake2b: "blake2b:47e872432ce32b7cecc554cc9c67d12553e62fed8f42768a43e64f16ca72e9679b0f539e7f47bf89ffe658be7b3a29f857d4ce244523dce181587c42ec4c7533".to_string(),
-                size: TAR_GZ.len() as u64,
-            },
-            files: vec![
-                Entry {
-                    path: "foo-1.0/".to_string(),
-                    digest: None,
-                    metadata: Metadata {
-                        mode: Some("0o755".to_string()),
-                        links_to: None,
-                        mtime: Some(1713888951),
-                        uid: Some(1000),
-                        username: Some("user".to_string()),
-                        gid: Some(1000),
-                        groupname: Some("user".to_string()),
-                    }
-                },
-            ],
-            sbom_refs: vec![],
-        });
-    }
-
-    #[tokio::test]
     async fn test_stream_content() {
         let data = b"\x7FELFhello world" as &[u8];
 
@@ -561,7 +522,7 @@ mod tests {
         };
 
         // Process the tar file
-        let summary = stream_data(None, &UploadClient::disabled(), &buf[..], None)
+        let summary = stream_data(None, &UploadClient::disabled(), &buf[..])
             .await
             .unwrap();
         assert_eq!(

@@ -65,7 +65,6 @@ pub async fn run(args: &args::SyncHomebrew) -> Result<()> {
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {
                         url: url.to_string(),
-                        compression: None,
                         success_ref: None,
                     },
                 )?)

@@ -180,7 +180,6 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     format!("fetch:{url}"),
                     &db::TaskData::FetchTar {
                         url,
-                        compression: Some("gz".to_string()),
                         success_ref: Some(db::DownloadRef {
                             vendor: cargo::VENDOR.to_string(),
                             package: pkg.name.to_string(),
@@ -261,7 +260,6 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     format!("fetch:{url}"),
                     &db::TaskData::FetchTar {
                         url,
-                        compression: Some("gz".to_string()),
                         success_ref: Some(db::DownloadRef {
                             vendor: yarn::VENDOR.to_string(),
                             package: pkg.name.to_string(),

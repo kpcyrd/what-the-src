@@ -79,7 +79,12 @@ pub fn is_possible_tar_artifact(url: &str) -> bool {
     if !url.starts_with("https://") && !url.starts_with("http://") {
         false
     } else {
-        url.contains(".tar") || url.ends_with(".crate") || url.ends_with(".tgz")
+        url.contains(".tar")
+            || url.ends_with(".crate")
+            || url.ends_with(".tgz")
+            || url.ends_with(".txz")
+            || url.ends_with(".tbz2")
+            || url.ends_with(".tbz")
     }
 }
 
@@ -92,7 +97,6 @@ pub fn task_for_url(url: &str) -> Option<Task> {
                     format!("fetch:{url}"),
                     &TaskData::FetchTar {
                         url: url.to_string(),
-                        compression: None,
                         success_ref: None,
                     },
                 )

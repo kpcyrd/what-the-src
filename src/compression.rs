@@ -7,7 +7,6 @@ use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
 
 pub async fn auto<R: AsyncRead + Unpin>(
     reader: R,
-    _compression: Option<&str>,
 ) -> Result<(Decompressor<BufReader<ReadAhead<R>>>, &'static str)> {
     let mut reader = ReadAhead::new(reader);
     let magic = reader.peek().await?;

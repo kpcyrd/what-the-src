@@ -165,7 +165,7 @@ pub async fn take_snapshot(
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
-    let summary = ingest::tar::stream_data(Some(db), upload, stdout, None).await?;
+    let summary = ingest::tar::stream_data(Some(db), upload, stdout).await?;
 
     let status = child.wait().await?;
     if !status.success() {

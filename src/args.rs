@@ -104,8 +104,6 @@ pub struct IngestTar {
     pub s3: Option<S3>,
     #[command(flatten)]
     pub tmp: OptionalTemp,
-    #[arg(short, long)]
-    pub compression: Option<String>,
     pub file: Option<String>,
 }
 
