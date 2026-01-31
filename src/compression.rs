@@ -7,31 +7,24 @@ use tokio::io::{self, AsyncBufRead, AsyncRead, BufReader, ReadBuf};
 
 pub async fn auto<R: AsyncRead + Unpin>(
     reader: R,
-) -> Result<(Decompressor<BufReader<ReadAhead<R>>>, &'static str)> {
+) -> Result<Decompressor<BufReader<ReadAhead<R>>>> {
     let mut reader = ReadAhead::new(reader);
     let magic = reader.peek().await?;
 
-    let compression = if magic.starts_with(b"\x1F\x8B") {
-        Some("gz")
+    // Detect compression type and select decompressor
+    Ok(if magic.starts_with(b"\x1F\x8B") {
+        let reader = io::BufReader::new(reader);
+        Decompressor::gz(reader)
     } else if magic.starts_with(b"\xFD\x37\x7A\x58\x5A") {
-        Some("xz")
+        let reader = io::BufReader::new(reader);
+        Decompressor::xz(reader)
     } else if magic.starts_with(b"\x42\x5A\x68") {
-        Some("bz2")
+        let reader = io::BufReader::new(reader);
+        Decompressor::bz2(reader)
     } else {
-        None
-    };
-
-    // Setup selected decompressor
-    let reader = io::BufReader::new(reader);
-    let (reader, outer_label) = match compression {
-        Some("gz") => (Decompressor::gz(reader), "gz(tar)"),
-        Some("xz") => (Decompressor::xz(reader), "xz(tar)"),
-        Some("bz2") => (Decompressor::bz2(reader), "bz2(tar)"),
-        None => (Decompressor::Plain(reader), "tar"),
-        unknown => panic!("Unknown compression algorithm: {unknown:?}"),
-    };
-
-    Ok((reader, outer_label))
+        let reader = io::BufReader::new(reader);
+        Decompressor::Plain(reader)
+    })
 }
 
 pub enum Decompressor<R> {
@@ -54,6 +47,15 @@ impl<R: AsyncBufRead> Decompressor<R> {
         let mut decoder = BzDecoder::new(reader);
         decoder.multiple_members(true);
         Decompressor::Bz2(decoder)
+    }
+
+    pub fn outer_label(&self) -> &'static str {
+        match self {
+            Decompressor::Plain(_) => "tar",
+            Decompressor::Gz(_) => "gz(tar)",
+            Decompressor::Xz(_) => "xz(tar)",
+            Decompressor::Bz2(_) => "bz2(tar)",
+        }
     }
 
     pub fn into_inner(self) -> R {

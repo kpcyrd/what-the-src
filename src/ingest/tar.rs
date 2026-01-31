@@ -290,7 +290,8 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
     let reader = Hasher::new(reader);
 
     // Setup decompressor
-    let (reader, outer_label) = compression::auto(reader).await?;
+    let reader = compression::auto(reader).await?;
+    let outer_label = reader.outer_label();
     let reader = Hasher::new(reader);
 
     // Prepare s3 filesystem buffer
