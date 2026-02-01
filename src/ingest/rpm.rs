@@ -59,17 +59,23 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
         } else {
             (Some(db), upload)
         };
-        let summary = ingest::tar::stream_data(tar_db, upload, entry).await?;
 
-        let r = db::Ref {
-            chksum: summary.outer_digests.sha256.clone(),
-            vendor: vendor.to_string(),
-            package: package.to_string(),
-            version: version.to_string(),
-            filename: Some(filename.to_string()),
-        };
-        info!("insert ref: {r:?}");
-        db.insert_ref(&r).await?;
+        match ingest::tar::stream_data(tar_db, upload, entry).await {
+            Ok(summary) => {
+                let r = db::Ref {
+                    chksum: summary.outer_digests.sha256.clone(),
+                    vendor: vendor.to_string(),
+                    package: package.to_string(),
+                    version: version.to_string(),
+                    filename: Some(filename.to_string()),
+                };
+                info!("insert ref: {r:?}");
+                db.insert_ref(&r).await?;
+            }
+            Err(err) => warn!(
+                "Failed to ingest source rpm (vendor={vendor} package={package} version={version}) entry {filename:?}: {err:#}"
+            ),
+        }
     }
     Ok(())
 }
