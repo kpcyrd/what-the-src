@@ -73,7 +73,7 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
                 db.insert_ref(&r).await?;
             }
             Err(err) => warn!(
-                "Failed to ingest source rpm (vendor={vendor} package={package} version={version}) entry {filename:?}: {err:#}"
+                "Failed to ingest source rpm (vendor={vendor:?} package={package:?} version={version:?}) entry {filename:?}: {err:#}"
             ),
         }
     }
