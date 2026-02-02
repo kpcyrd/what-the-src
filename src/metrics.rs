@@ -39,6 +39,17 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
     set.spawn({
         let db = db.clone();
         async move {
+            let (count,) = db.stats_artifacts().await?;
+            Ok(vec![(
+                Opts::new("artifact_count", "Number of artifacts in the database"),
+                count,
+            )])
+        }
+    });
+
+    set.spawn({
+        let db = db.clone();
+        async move {
             let (count, compressed, uncompressed) = db.stats_archive().await?;
 
             Ok(vec![

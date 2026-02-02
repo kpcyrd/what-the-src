@@ -548,6 +548,12 @@ impl Client {
         .await
     }
 
+    pub async fn stats_artifacts(&self) -> Result<(i64,)> {
+        let sql = "SELECT count(*) FROM artifacts";
+        let result = sqlx::query_as::<_, _>(sql).fetch_one(&self.pool).await?;
+        Ok(result)
+    }
+
     pub async fn stats_import_dates(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
             "SELECT to_date_char(last_imported) date, count(*) num
@@ -596,9 +602,7 @@ impl Client {
     pub async fn stats_archive(&self) -> Result<(i64, i64, i64)> {
         let sql = "SELECT count(*), sum(compressed_size)::bigint, sum(uncompressed_size)::bigint
             FROM bucket";
-        let result = sqlx::query_as::<_, _>(sql)
-            .fetch_one(&self.pool)
-            .await?;
+        let result = sqlx::query_as::<_, _>(sql).fetch_one(&self.pool).await?;
         Ok(result)
     }
 
