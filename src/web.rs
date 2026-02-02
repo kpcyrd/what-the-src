@@ -2,6 +2,7 @@ use crate::args;
 use crate::db;
 use crate::errors::*;
 use crate::ingest;
+use crate::metrics;
 use crate::sbom;
 use data_encoding::BASE64;
 use diffy_fork_filenames as diffy;
@@ -659,6 +660,13 @@ pub async fn run(args: &args::Web) -> Result<()> {
         .and(warp::path::end())
         .and(warp_embed::embed_one(&Assets, "style.css"))
         .map(|r| cache_control(r, CACHE_CONTROL_DEFAULT));
+    let metrics = warp::get()
+        .and(db.clone())
+        .and(warp::path("api"))
+        .and(warp::path("metrics"))
+        .and(warp::path::end())
+        .and_then(metrics::route)
+        .map(|r| cache_control(r, CACHE_CONTROL_SHORT));
 
     let routes = warp::any()
         .and(
@@ -669,7 +677,8 @@ pub async fn run(args: &args::Web) -> Result<()> {
                 .or(stats)
                 .or(diff_redirect)
                 .or(diff)
-                .or(style),
+                .or(style)
+                .or(metrics),
         )
         .recover(rejection);
 

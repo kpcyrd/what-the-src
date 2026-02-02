@@ -565,7 +565,18 @@ impl Client {
             FROM refs
             GROUP BY vendor
             ORDER BY vendor",
-            Some(RETRY_LIMIT),
+            None,
+        )
+        .await
+    }
+
+    pub async fn stats_sbom_strains(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT strain, count(*)
+            FROM sboms
+            GROUP BY strain
+            ORDER BY strain",
+            None,
         )
         .await
     }
@@ -580,6 +591,15 @@ impl Client {
             Some(RETRY_LIMIT),
         )
         .await
+    }
+
+    pub async fn stats_archive(&self) -> Result<(i64, i64, i64)> {
+        let sql = "SELECT count(*), sum(compressed_size)::bigint, sum(uncompressed_size)::bigint
+            FROM bucket";
+        let result = sqlx::query_as::<_, _>(sql)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(result)
     }
 
     pub async fn stats_aliases_with_reason(&self) -> Result<Vec<(String, i64)>> {

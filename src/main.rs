@@ -6,6 +6,7 @@ pub mod compression;
 pub mod db;
 pub mod errors;
 pub mod ingest;
+pub mod metrics;
 pub mod parsers;
 pub mod reindex;
 pub mod s3;
