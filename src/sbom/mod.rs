@@ -286,7 +286,7 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                     db.resolve_artifact(&chksum),
                     db.get_ref(&chksum, yarn::VENDOR, &pkg.name, &pkg.version),
                 );
-                if has_artifact?.is_some() && has_ref?.is_some() {
+                if has_artifact?.is_some() && (has_ref?.is_some() || !pkg.official_registry) {
                     debug!(
                         "Skipping because known yarn reference (package={:?} version={:?} chksum={:?})",
                         pkg.name, pkg.version, chksum
