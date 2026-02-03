@@ -30,12 +30,14 @@ impl Iterator for ParsedLock {
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((name, package)) = self.packages.pop_first() {
-            let Some(name) = name.strip_prefix("node_modules/") else {
+            let Some(name) = package
+                .name
+                .as_deref()
+                .or_else(|| name.strip_prefix("node_modules/"))
+                .filter(|name| !name.is_empty())
+            else {
                 continue;
             };
-            if name.is_empty() {
-                continue;
-            }
 
             // Extract the checksum in our format (if possible)
             let checksum = package
@@ -71,6 +73,7 @@ impl Iterator for ParsedLock {
 
 #[derive(Debug, PartialEq, Deserialize)]
 pub struct NpmPackage {
+    pub name: Option<String>,
     pub version: String,
     pub resolved: Option<String>,
     pub integrity: Option<String>,
@@ -208,6 +211,13 @@ mod tests {
         assert_eq!(
             list,
             [
+                Package {
+                    name: "@techaro/anubis".to_string(),
+                    version: "1.24.0".to_string(),
+                    url: None,
+                    checksum: None,
+                    official_registry: false
+                },
                 Package {
                     name: "@aws-crypto/sha256-js".to_string(),
                     version: "5.2.0".to_string(),
