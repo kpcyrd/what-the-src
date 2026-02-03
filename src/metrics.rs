@@ -101,6 +101,21 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
         }
     });
 
+    set.spawn({
+        let db = db.clone();
+        async move {
+            db.stats_sbom_strains().await.map(|stats| {
+                Vec::from_iter(stats.into_iter().map(|(strain, count)| {
+                    (
+                        Opts::new("sbom_count", "Number of sboms per strain")
+                            .const_label("strain", &strain),
+                        count,
+                    )
+                }))
+            })
+        }
+    });
+
     while let Some(stat) = set.join_next().await {
         let Ok(stat) = stat else {
             continue;
