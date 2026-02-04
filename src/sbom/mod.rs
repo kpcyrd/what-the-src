@@ -2,6 +2,7 @@ pub mod cargo;
 pub mod composer;
 pub mod go;
 pub mod npm;
+pub mod poetry;
 pub mod uv;
 pub mod yarn;
 
@@ -18,6 +19,7 @@ pub enum Sbom {
     Composer(composer::ComposerLock),
     Go(go::GoSum),
     Npm(npm::PackageLockJson),
+    Poetry(poetry::PoetryLock),
     Uv(uv::UvLock),
     Yarn(yarn::YarnLock),
 }
@@ -37,6 +39,7 @@ impl Sbom {
             composer::STRAIN => Ok(Sbom::Composer(composer::ComposerLock { data })),
             go::STRAIN => Ok(Sbom::Go(go::GoSum { data })),
             npm::STRAIN => Ok(Sbom::Npm(npm::PackageLockJson { data })),
+            poetry::STRAIN => Ok(Sbom::Poetry(poetry::PoetryLock { data })),
             uv::STRAIN => Ok(Sbom::Uv(uv::UvLock { data })),
             yarn::STRAIN => Ok(Sbom::Yarn(yarn::YarnLock { data })),
             _ => Err(Error::UnknownSbomStrain(strain.to_string())),
@@ -49,6 +52,7 @@ impl Sbom {
             Sbom::Composer(_) => composer::STRAIN,
             Sbom::Go(_) => go::STRAIN,
             Sbom::Npm(_) => npm::STRAIN,
+            Sbom::Poetry(_) => poetry::STRAIN,
             Sbom::Uv(_) => uv::STRAIN,
             Sbom::Yarn(_) => yarn::STRAIN,
         }
@@ -60,6 +64,7 @@ impl Sbom {
             Sbom::Composer(sbom) => &sbom.data,
             Sbom::Go(sbom) => &sbom.data,
             Sbom::Npm(sbom) => &sbom.data,
+            Sbom::Poetry(sbom) => &sbom.data,
             Sbom::Uv(sbom) => &sbom.data,
             Sbom::Yarn(sbom) => &sbom.data,
         }
@@ -154,11 +159,12 @@ pub struct Ref {
 pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
     match filename {
         Some("Cargo.lock") => Some(cargo::STRAIN),
-        Some("package-lock.json") => Some(npm::STRAIN),
-        Some("yarn.lock") => Some(yarn::STRAIN),
         Some("composer.lock") => Some(composer::STRAIN),
         Some("go.sum") => Some(go::STRAIN),
+        Some("package-lock.json") => Some(npm::STRAIN),
+        Some("poetry.lock") => Some(poetry::STRAIN),
         Some("uv.lock") => Some(uv::STRAIN),
+        Some("yarn.lock") => Some(yarn::STRAIN),
         _ => None,
     }
 }
