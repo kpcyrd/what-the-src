@@ -32,6 +32,13 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
             }
         }
 
+        // Check if we already have this artifact archived
+        if args.skip_archived && db.get_bucket_object(&artifact.chksum).await?.is_some() {
+            debug!("Skipping already archived artifact: {:?}", artifact.chksum);
+            continue;
+        }
+
+        // Resolve checksum to relevant refs
         let refs = db.get_all_refs_for(&artifact.chksum).await?;
 
         let mut refs = refs

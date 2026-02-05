@@ -341,6 +341,9 @@ pub struct ReindexUrl {
     /// Only reindex items that haven't been imported the last X days
     #[arg(long)]
     pub age: Option<i64>,
+    /// Skip artifacts that are already archived
+    #[arg(long)]
+    pub skip_archived: bool,
 }
 
 /// Reindex all known sboms
