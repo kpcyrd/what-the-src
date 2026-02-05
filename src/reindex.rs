@@ -44,18 +44,17 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
                     true
                 }
             })
+            .flat_map(|filename| utils::task_for_url(&filename))
             .collect::<Vec<_>>();
         fastrand::shuffle(&mut refs);
 
-        let Some(filename) = refs.into_iter().next() else {
+        let Some(task) = refs.into_iter().next() else {
             continue;
         };
 
-        if let Some(task) = utils::task_for_url(&filename) {
-            info!("Inserting task: {task:?}");
-            db.insert_task(&task).await?;
-            scheduled += 1;
-        }
+        info!("Inserting task: {task:?}");
+        db.insert_task(&task).await?;
+        scheduled += 1;
     }
 
     Ok(())
