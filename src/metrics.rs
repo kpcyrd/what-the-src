@@ -89,6 +89,24 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
     set.spawn({
         let db = db.clone();
         async move {
+            db.stats_refs_hosts().await.map(|stats| {
+                Vec::from_iter(stats.into_iter().map(|(host, count)| {
+                    (
+                        Opts::new(
+                            "source_host_artifacts",
+                            "Number of artifacts per source host",
+                        )
+                        .const_label("host", &host),
+                        count,
+                    )
+                }))
+            })
+        }
+    });
+
+    set.spawn({
+        let db = db.clone();
+        async move {
             db.stats_vendor_refs().await.map(|stats| {
                 Vec::from_iter(stats.into_iter().map(|(vendor, count)| {
                     (

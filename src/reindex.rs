@@ -55,7 +55,7 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
             .collect::<Vec<_>>();
         fastrand::shuffle(&mut refs);
 
-        let Some(task) = refs.into_iter().next() else {
+        let Some(task) = refs.pop() else {
             continue;
         };
 
