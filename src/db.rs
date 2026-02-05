@@ -610,9 +610,9 @@ impl Client {
         self.get_stats(
             "SELECT split_part(filename, '/', 3) as host, COUNT(DISTINCT filename) as num
             FROM refs
-            WHERE filename LIKE 'http%'
+            WHERE filename LIKE 'http%' AND split_part(filename, '/', 3) != ''
             GROUP BY host
-            ORDER BY num desc, host asc",
+            ORDER BY num DESC, host ASC",
             None,
         )
         .await
