@@ -147,17 +147,21 @@ impl Client {
 
     pub async fn insert_ref(&self, obj: &Ref) -> Result<()> {
         let _result = sqlx::query(
-            "INSERT INTO refs (chksum, vendor, package, version, filename, last_seen)
-            VALUES ($1, $2, $3, $4, $5, now())
+            "INSERT INTO refs (chksum, vendor, package, version, filename, last_seen, protocol, host)
+            VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
             ON CONFLICT (chksum, vendor, package, version) DO UPDATE SET
             last_seen = EXCLUDED.last_seen,
-            filename = COALESCE(EXCLUDED.filename, refs.filename)",
+            filename = COALESCE(EXCLUDED.filename, refs.filename),
+            protocol = COALESCE(EXCLUDED.protocol, refs.protocol),
+            host = COALESCE(EXCLUDED.host, refs.host)",
         )
         .bind(&obj.chksum)
         .bind(&obj.vendor)
         .bind(&obj.package)
         .bind(&obj.version)
         .bind(&obj.filename)
+        .bind(&obj.protocol)
+        .bind(&obj.host)
         .execute(&self.pool)
         .await?;
         Ok(())
