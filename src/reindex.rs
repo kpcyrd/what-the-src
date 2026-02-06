@@ -109,3 +109,36 @@ pub async fn run_sbom(args: &args::ReindexSbom) -> Result<()> {
 
     Ok(())
 }
+
+pub async fn run_refs(_args: &args::ReindexRefs) -> Result<()> {
+    let db = db::Client::create().await?;
+
+    let mut backlog = Vec::new();
+
+    let stream = db.get_all_remote_refs();
+    tokio::pin!(stream);
+    while let Some(src_ref) = stream.next().await {
+        let src_ref = src_ref?;
+
+        let new_ref = db::Ref::new(
+            src_ref.chksum.clone(),
+            src_ref.vendor.clone(),
+            src_ref.package.clone(),
+            src_ref.version.clone(),
+            src_ref.filename.clone(),
+        );
+
+        if src_ref != new_ref {
+            backlog.push(new_ref);
+        }
+    }
+
+    info!("Queued {} refs for reindexing", backlog.len());
+
+    for batch in backlog.chunks(1_000) {
+        info!("Inserting batch of {} refs", batch.len());
+        db.batch_insert_refs(batch).await?;
+    }
+
+    Ok(())
+}

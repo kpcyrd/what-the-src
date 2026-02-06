@@ -145,7 +145,10 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn insert_ref(&self, obj: &Ref) -> Result<()> {
+    pub async fn insert_ref_on<'a, E>(&self, exec: E, obj: &Ref) -> Result<()>
+    where
+        E: sqlx::Executor<'a, Database = Postgres>,
+    {
         let _result = sqlx::query(
             "INSERT INTO refs (chksum, vendor, package, version, filename, last_seen, protocol, host)
             VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
@@ -162,8 +165,23 @@ impl Client {
         .bind(&obj.filename)
         .bind(&obj.protocol)
         .bind(&obj.host)
-        .execute(&self.pool)
+        .execute(exec)
         .await?;
+        Ok(())
+    }
+
+    pub async fn insert_ref(&self, obj: &Ref) -> Result<()> {
+        self.insert_ref_on(&self.pool, obj).await
+    }
+
+    pub async fn batch_insert_refs(&self, batch: &[Ref]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        for obj in batch {
+            self.insert_ref_on(&mut *tx, obj).await?;
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -252,6 +270,18 @@ impl Client {
             rows.push(row.into());
         }
         Ok(rows)
+    }
+
+    pub fn get_all_remote_refs(&self) -> impl Stream<Item = Result<Ref>> {
+        let pool = self.pool.clone();
+        async_stream::stream! {
+            let mut result = sqlx::query_as::<_, Ref>("SELECT * FROM refs WHERE filename LIKE '%://%'")
+                .fetch(&pool);
+
+            while let Some(row) = result.try_next().await? {
+                yield Ok(row);
+            }
+        }
     }
 
     pub fn get_all_artifacts_by_age(&self) -> impl Stream<Item = Result<Artifact>> {

@@ -83,6 +83,7 @@ pub enum Plumbing {
     AddRef(AddRef),
     ReindexUrl(ReindexUrl),
     ReindexSbom(ReindexSbom),
+    ReindexRefs(ReindexRefs),
     S3Presign(S3Presign),
     Upload(Upload),
 }
@@ -356,6 +357,10 @@ pub struct ReindexSbom {
     #[arg(long)]
     pub limit: Option<usize>,
 }
+
+/// Reindex all known source refs
+#[derive(Debug, Parser)]
+pub struct ReindexRefs {}
 
 #[derive(Debug, Clone, Parser)]
 #[group(requires_all = ["access_key", "secret_key", "bucket"])]

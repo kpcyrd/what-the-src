@@ -90,6 +90,7 @@ async fn main() -> Result<()> {
         SubCommand::Plumbing(Plumbing::AddRef(args)) => alias::run(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexUrl(args)) => reindex::run_url(&args).await,
         SubCommand::Plumbing(Plumbing::ReindexSbom(args)) => reindex::run_sbom(&args).await,
+        SubCommand::Plumbing(Plumbing::ReindexRefs(args)) => reindex::run_refs(&args).await,
         SubCommand::Plumbing(Plumbing::S3Presign(args)) => {
             let creds = args.s3.creds();
             let bucket = args.s3.bucket()?;
