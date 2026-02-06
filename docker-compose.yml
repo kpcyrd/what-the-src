@@ -8,6 +8,8 @@ services:
     command: ["daemon"]
     environment:
     - DATABASE_URL=postgres://postgres:postgres@db/what-the-src
+    depends_on:
+      - db
 
   worker:
     build: .
@@ -15,6 +17,8 @@ services:
     command: ["worker"]
     environment:
     - DATABASE_URL=postgres://postgres:postgres@db/what-the-src
+    depends_on:
+      - db
 
   db:
     image: postgres:16-alpine
