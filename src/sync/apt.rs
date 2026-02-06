@@ -81,6 +81,8 @@ pub async fn run(args: &args::SyncApt) -> Result<()> {
                             package,
                             version,
                             filename: Some(name.clone()),
+                            protocol: None,
+                            host: None,
                         };
                         db.insert_ref(&obj).await?;
 

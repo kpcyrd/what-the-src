@@ -100,13 +100,13 @@ impl Manifest {
                     .first()
                     .ok_or_else(|| Error::StagexMissingMirrors(source.clone()))?;
 
-                Ok(db::Ref {
-                    chksum: format!("sha256:{}", source.hash),
-                    vendor: vendor.to_string(),
-                    package: self.package.name.to_string(),
-                    version: version.to_string(),
-                    filename: Some(self.interpolate(mirror, source)?),
-                })
+                Ok(db::Ref::new(
+                    format!("sha256:{}", source.hash),
+                    vendor.to_string(),
+                    self.package.name.to_string(),
+                    version.to_string(),
+                    Some(self.interpolate(mirror, source)?),
+                ))
             })
             .collect()
     }
@@ -221,7 +221,9 @@ mirrors = [ "https://ftp.gnu.org/gnu/binutils/{file}",]
                 version: "2.43.1".to_string(),
                 filename: Some(
                     "https://ftp.gnu.org/gnu/binutils/binutils-2.43.1.tar.xz".to_string()
-                )
+                ),
+                protocol: Some("https".to_string()),
+                host: Some("ftp.gnu.org".to_string()),
             }]
         );
     }
@@ -260,6 +262,8 @@ mirrors = ["https://github.com/unicode-org/icu/releases/download/release-{versio
                     package: "icu".to_string(),
                     version: "74.2".to_string(),
                     filename: Some("https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-src.tgz".to_string()),
+                    protocol: Some("https".to_string()),
+                    host: Some("github.com".to_string()),
                 },
                 db::Ref {
                     chksum: "sha256:c28c3ca5f4ba3384781797138a294ca360988d4322674ad4d51e52f5d9b0a2b6".to_string(),
@@ -267,6 +271,8 @@ mirrors = ["https://github.com/unicode-org/icu/releases/download/release-{versio
                     package: "icu".to_string(),
                     version: "74.2".to_string(),
                     filename: Some("https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-data.zip".to_string()),
+                    protocol: Some("https".to_string()),
+                    host: Some("github.com".to_string()),
                 },
                 db::Ref {
                     chksum: "sha256:42a12ebfb1a82f80bb0005d9b6e018382ccaa2462f0d086a8c69ae736fdded3e".to_string(),
@@ -274,6 +280,8 @@ mirrors = ["https://github.com/unicode-org/icu/releases/download/release-{versio
                     package: "icu".to_string(),
                     version: "74.2".to_string(),
                     filename: Some("https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-data-bin-b.zip".to_string()),
+                    protocol: Some("https".to_string()),
+                    host: Some("github.com".to_string()),
                 },
                 db::Ref {
                     chksum: "sha256:2acdb1b982228040963d183b2dd9d321252c613e0f4db213d4bbc10417cde569".to_string(),
@@ -281,9 +289,9 @@ mirrors = ["https://github.com/unicode-org/icu/releases/download/release-{versio
                     package: "icu".to_string(),
                     version: "74.2".to_string(),
                     filename: Some("https://github.com/unicode-org/icu/releases/download/release-74-2/icu4c-74_2-data-bin-l.zip".to_string()),
+                    protocol: Some("https".to_string()),
+                    host: Some("github.com".to_string()),
                 },
-
-
             ]
         );
     }
@@ -313,6 +321,8 @@ mirrors = [ "https://fossies.org/linux/misc/zip{version}.{format}",]
                 package: "zip".to_string(),
                 version: "30".to_string(),
                 filename: Some("https://fossies.org/linux/misc/zip30.tar.gz".to_string()),
+                protocol: Some("https".to_string()),
+                host: Some("fossies.org".to_string()),
             }]
         );
     }

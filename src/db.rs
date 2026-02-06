@@ -12,6 +12,7 @@ use sqlx::types::chrono::{DateTime, Utc};
 use std::borrow::Cow;
 use std::env;
 use std::io::{Read, Write};
+use url::Url;
 
 const RETRY_LIMIT: i64 = 5;
 
@@ -711,6 +712,37 @@ pub struct Ref {
     pub package: String,
     pub version: String,
     pub filename: Option<String>,
+    pub protocol: Option<String>,
+    pub host: Option<String>,
+}
+
+impl Ref {
+    pub fn new(
+        chksum: String,
+        vendor: String,
+        package: String,
+        version: String,
+        filename: Option<String>,
+    ) -> Self {
+        let (protocol, host) = filename
+            .as_deref()
+            .and_then(|s| {
+                let url = Url::parse(s).ok()?;
+                let host = url.host_str()?;
+                Some((Some(url.scheme().to_string()), Some(host.to_string())))
+            })
+            .unwrap_or((None, None));
+
+        Ref {
+            chksum,
+            vendor,
+            package,
+            version,
+            filename,
+            protocol,
+            host,
+        }
+    }
 }
 
 #[derive(sqlx::FromRow, Debug, Serialize)]
@@ -985,6 +1017,174 @@ mod tests {
                     package: "examplepackage".to_string(),
                     version: "1.0.0".to_string(),
                 }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_no_filename() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            None,
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: None,
+                protocol: None,
+                host: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_simple_filename() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("foo-1.0.0.tar.gz".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("foo-1.0.0.tar.gz".to_string()),
+                protocol: None,
+                host: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_unusual_filename_slashes() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("a/b/c://d/e/foo/bar-1.0.0.tar.gz".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("a/b/c://d/e/foo/bar-1.0.0.tar.gz".to_string()),
+                protocol: None,
+                host: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_http_url() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("http://example.com/src/foo-1.0.0.tar.gz".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("http://example.com/src/foo-1.0.0.tar.gz".to_string()),
+                protocol: Some("http".to_string()),
+                host: Some("example.com".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_https_url() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("https://example.com/src/foo-1.0.0.tar.gz".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("https://example.com/src/foo-1.0.0.tar.gz".to_string()),
+                protocol: Some("https".to_string()),
+                host: Some("example.com".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_git_url() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("git+https://example.com/src/foo.git".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("git+https://example.com/src/foo.git".to_string()),
+                protocol: Some("git+https".to_string()),
+                host: Some("example.com".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_ref_git_http_port_url() {
+        let r = Ref::new(
+            "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0".to_string(),
+            "vendor".to_string(),
+            "package".to_string(),
+            "version".to_string(),
+            Some("git+http://example.com:8080/src/foo.git".to_string()),
+        );
+        assert_eq!(
+            r,
+            Ref {
+                chksum: "sha256:55f514c48ef9359b792e23abbad6ca8a1e999065ba8879d8717fecb52efc1ea0"
+                    .to_string(),
+                vendor: "vendor".to_string(),
+                package: "package".to_string(),
+                version: "version".to_string(),
+                filename: Some("git+http://example.com:8080/src/foo.git".to_string()),
+                protocol: Some("git+http".to_string()),
+                host: Some("example.com".to_string()),
             }
         );
     }

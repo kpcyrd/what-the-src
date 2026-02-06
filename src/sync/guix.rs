@@ -114,13 +114,13 @@ pub async fn run(args: &args::SyncGuix) -> Result<()> {
                     continue;
                 }
 
-                let obj = db::Ref {
-                    chksum: chksum.to_string(),
-                    vendor: args.vendor.to_string(),
-                    package: package.name.to_string(),
-                    version: package.version.to_string(),
-                    filename: Some(url.to_string()),
-                };
+                let obj = db::Ref::new(
+                    chksum.to_string(),
+                    args.vendor.to_string(),
+                    package.name.to_string(),
+                    package.version.to_string(),
+                    Some(url.to_string()),
+                );
                 debug!("insert: {obj:?}");
                 db.insert_ref(&obj).await?;
 

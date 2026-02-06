@@ -68,6 +68,8 @@ pub async fn read_routine<R: AsyncRead + Unpin>(
                     package: package.to_string(),
                     version: version.to_string(),
                     filename: Some(filename.to_string()),
+                    protocol: None,
+                    host: None,
                 };
                 info!("insert ref: {r:?}");
                 db.insert_ref(&r).await?;

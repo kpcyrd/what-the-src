@@ -66,13 +66,13 @@ impl Worker {
                 let summary =
                     ingest::tar::stream_data(Some(&self.db), &self.upload, reader).await?;
                 if let Some(pkg) = success_ref {
-                    let r = db::Ref {
-                        chksum: summary.outer_digests.sha256,
-                        vendor: pkg.vendor,
-                        package: pkg.package,
-                        version: pkg.version,
-                        filename: Some(url),
-                    };
+                    let r = db::Ref::new(
+                        summary.outer_digests.sha256,
+                        pkg.vendor,
+                        pkg.package,
+                        pkg.version,
+                        Some(url),
+                    );
                     info!("insert: {r:?}");
                     self.db.insert_ref(&r).await?;
                 }

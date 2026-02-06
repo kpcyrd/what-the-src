@@ -191,13 +191,13 @@ pub async fn stream_data<R: AsyncRead + Unpin>(
             db.insert_task(&task).await?;
         }
 
-        let r = db::Ref {
+        let r = db::Ref::new(
             chksum,
-            vendor: vendor.to_string(),
-            package: package.to_string(),
-            version: version.to_string(),
-            filename: entry.url,
-        };
+            vendor.to_string(),
+            package.to_string(),
+            version.to_string(),
+            entry.url,
+        );
         info!("insert: {r:?}");
         db.insert_ref(&r).await?;
     }

@@ -82,13 +82,7 @@ pub async fn run(args: &args::SyncHomebrew) -> Result<()> {
         }
 
         debug!("package={package:?} version={version:?} url={url:?} ({chksum})");
-        let obj = db::Ref {
-            chksum,
-            vendor: vendor.to_string(),
-            package,
-            version,
-            filename: Some(url),
-        };
+        let obj = db::Ref::new(chksum, vendor.to_string(), package, version, Some(url));
         db.insert_ref(&obj).await?;
     }
 

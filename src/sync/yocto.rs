@@ -84,13 +84,13 @@ pub async fn run(args: &args::SyncYocto) -> Result<()> {
                 None
             };
 
-            let r = db::Ref {
+            let r = db::Ref::new(
                 chksum,
-                vendor: vendor.to_string(),
-                package: package.to_string(),
-                version: version.to_string(),
-                filename: Some(url),
-            };
+                vendor.to_string(),
+                package.to_string(),
+                version.to_string(),
+                Some(url),
+            );
             debug!("insert: {r:?}");
             db.insert_ref(&r).await?;
 

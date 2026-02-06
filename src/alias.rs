@@ -12,13 +12,13 @@ pub async fn run(args: &args::AddRef) -> Result<()> {
     let summary = ingest::tar::stream_data(Some(&db), &upload, io::stdin()).await?;
     let chksum = summary.outer_digests.sha256;
 
-    db.insert_ref(&db::Ref {
+    db.insert_ref(&db::Ref::new(
         chksum,
-        vendor: args.vendor.clone(),
-        package: args.package.clone(),
-        version: args.version.clone(),
-        filename: args.filename.clone(),
-    })
+        args.vendor.clone(),
+        args.package.clone(),
+        args.version.clone(),
+        args.filename.clone(),
+    ))
     .await?;
 
     Ok(())

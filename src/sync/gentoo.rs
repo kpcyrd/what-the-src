@@ -217,13 +217,13 @@ pub async fn run(args: &args::SyncGentoo) -> Result<()> {
                 let blake2b = format!("blake2b:{blake2b}");
                 let already_imported = db.resolve_artifact(&blake2b).await?.is_some();
 
-                let r = db::Ref {
-                    chksum: blake2b,
-                    vendor: vendor.to_string(),
-                    package: pkg.to_string(),
-                    version: version.to_string(),
-                    filename: Some(url.to_string()),
-                };
+                let r = db::Ref::new(
+                    blake2b,
+                    vendor.to_string(),
+                    pkg.to_string(),
+                    version.to_string(),
+                    Some(url.to_string()),
+                );
                 debug!("insert: {r:?}");
                 db.insert_ref(&r).await?;
 
