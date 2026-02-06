@@ -609,11 +609,11 @@ impl Client {
 
     pub async fn stats_refs_hosts(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
-            "SELECT split_part(filename, '/', 3) as host, COUNT(DISTINCT filename) as num
+            "SELECT split_part(filename, '/', 3) as xhost, COUNT(DISTINCT filename) as num
             FROM refs
             WHERE filename LIKE 'http%' AND split_part(filename, '/', 3) != ''
-            GROUP BY host
-            ORDER BY num DESC, host ASC",
+            GROUP BY xhost
+            ORDER BY num DESC, xhost ASC",
             None,
         )
         .await
