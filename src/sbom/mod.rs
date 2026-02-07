@@ -90,6 +90,10 @@ impl Sbom {
                 let sbom = sbom.parse()?;
                 Ok(sbom.collect::<Vec<_>>())
             }
+            Sbom::Uv(sbom) => {
+                let sbom = sbom.parse()?;
+                sbom.collect::<Result<Vec<_>>>()
+            }
             Sbom::Yarn(sbom) => {
                 let sbom = sbom.parse()?;
                 Ok(sbom.collect::<Vec<_>>())
@@ -264,6 +268,41 @@ pub async fn index(db: &db::Client, sbom: &Sbom) -> Result<()> {
                         url,
                         success_ref: pkg.official_registry.then(|| db::DownloadRef {
                             vendor: npm::VENDOR.to_string(),
+                            package: pkg.name.to_string(),
+                            version: pkg.version.to_string(),
+                        }),
+                    },
+                )?)
+                .await?;
+            }
+        }
+        uv::STRAIN => {
+            for pkg in sbom.to_packages()? {
+                let Some(chksum) = pkg.checksum else { continue };
+
+                let Some(url) = pkg.url else {
+                    continue;
+                };
+
+                let (has_artifact, has_ref) = tokio::join!(
+                    db.resolve_artifact(&chksum),
+                    db.get_ref(&chksum, uv::VENDOR, &pkg.name, &pkg.version),
+                );
+                if has_artifact?.is_some() && (has_ref?.is_some() || !pkg.official_registry) {
+                    debug!(
+                        "Skipping because known pypi reference (package={:?} version={:?} chksum={:?})",
+                        pkg.name, pkg.version, chksum
+                    );
+                    continue;
+                }
+
+                info!("Adding download task url={url:?}");
+                db.insert_task(&db::Task::new(
+                    format!("fetch:{url}"),
+                    &db::TaskData::FetchTar {
+                        url,
+                        success_ref: pkg.official_registry.then(|| db::DownloadRef {
+                            vendor: uv::VENDOR.to_string(),
                             package: pkg.name.to_string(),
                             version: pkg.version.to_string(),
                         }),
