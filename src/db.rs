@@ -669,6 +669,30 @@ impl Client {
         .await
     }
 
+    pub async fn stats_postgres_dead_rows(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT relname, n_dead_tup
+                FROM pg_stat_user_tables",
+            None,
+        )
+        .await
+    }
+
+    pub async fn stats_postgres_last_vacuum(&self) -> Result<Vec<(String, i64)>> {
+        self.get_stats(
+            "SELECT
+                relname AS table_name,
+                EXTRACT('epoch'
+                    FROM NOW() - GREATEST(last_vacuum, last_autovacuum)
+                )::bigint as elapsed_since
+                FROM pg_stat_user_tables
+                WHERE last_vacuum IS NOT NULL OR last_autovacuum IS NOT NULL
+                ORDER BY relname ASC",
+            None,
+        )
+        .await
+    }
+
     pub async fn dangling_artifacts(&self) -> Result<Vec<String>> {
         let mut result = sqlx::query(
             "select * from (

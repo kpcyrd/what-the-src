@@ -134,6 +134,39 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
         }
     });
 
+    set.spawn({
+        let db = db.clone();
+        async move {
+            db.stats_postgres_dead_rows().await.map(|stats| {
+                Vec::from_iter(stats.into_iter().map(|(table, count)| {
+                    (
+                        Opts::new("postgres_dead_rows", "Number of dead rows per table")
+                            .const_label("table", &table),
+                        count,
+                    )
+                }))
+            })
+        }
+    });
+
+    set.spawn({
+        let db = db.clone();
+        async move {
+            db.stats_postgres_last_vacuum().await.map(|stats| {
+                Vec::from_iter(stats.into_iter().map(|(table, elapsed_since)| {
+                    (
+                        Opts::new(
+                            "postgres_last_vacuum",
+                            "Time since last vacuum or autovacuum in seconds",
+                        )
+                        .const_label("table", &table),
+                        elapsed_since
+                    )
+                }))
+            })
+        }
+    });
+
     while let Some(stat) = set.join_next().await {
         let Ok(stat) = stat else {
             continue;
