@@ -167,6 +167,24 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
         }
     });
 
+    set.spawn({
+        let db = db.clone();
+        async move {
+            db.stats_postgres_active_vacuums().await.map(|stats| {
+                Vec::from_iter(stats.into_iter().map(|(table, count)| {
+                    (
+                        Opts::new(
+                            "postgres_active_vacuums",
+                            "Currently running vacuum processes",
+                        )
+                        .const_label("table", &table),
+                        count,
+                    )
+                }))
+            })
+        }
+    });
+
     while let Some(stat) = set.join_next().await {
         let Ok(stat) = stat else {
             continue;

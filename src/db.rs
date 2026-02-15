@@ -696,6 +696,30 @@ impl Client {
         .await
     }
 
+    pub async fn stats_postgres_active_vacuums(&self) -> Result<Vec<(String, i64)>> {
+        // The following are also interesting (can all be null)
+        // Does not fit the current concept `.get_stats(...) -> Vec<(String, i64)>` though
+        //
+        // phase
+        // heap_blks_total
+        // heap_blks_scanned
+        // heap_blks_vacuumed
+        // index_vacuum_count
+        // max_dead_tuples
+        // num_dead_tuples
+
+        self.get_stats(
+            "SELECT c.relname, count(1)
+                FROM pg_stat_progress_vacuum v
+                LEFT JOIN pg_class c
+                    ON c.oid = v.relid
+                WHERE c.relname IS NOT NULL
+                GROUP BY c.relname",
+            None,
+        )
+        .await
+    }
+
     pub async fn dangling_artifacts(&self) -> Result<Vec<String>> {
         let mut result = sqlx::query(
             "select * from (
