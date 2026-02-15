@@ -635,7 +635,10 @@ impl Client {
     }
 
     pub async fn stats_archive(&self) -> Result<(i64, i64, i64)> {
-        let sql = "SELECT count(*), sum(compressed_size)::bigint, sum(uncompressed_size)::bigint
+        let sql = "SELECT
+                count(*),
+                coalesce(sum(compressed_size)::bigint, 0),
+                coalesce(sum(uncompressed_size)::bigint, 0)
             FROM bucket";
         let result = sqlx::query_as::<_, _>(sql).fetch_one(&self.pool).await?;
         Ok(result)

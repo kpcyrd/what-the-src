@@ -160,7 +160,7 @@ pub async fn route(db: Arc<db::Client>) -> result::Result<Box<dyn warp::Reply>, 
                             "Time since last vacuum or autovacuum in seconds",
                         )
                         .const_label("table", &table),
-                        elapsed_since
+                        elapsed_since,
                     )
                 }))
             })
