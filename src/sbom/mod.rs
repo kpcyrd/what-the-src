@@ -1,3 +1,4 @@
+pub mod bun;
 pub mod cargo;
 pub mod composer;
 pub mod go;
@@ -15,6 +16,7 @@ use tokio::fs;
 
 #[derive(Debug, PartialEq)]
 pub enum Sbom {
+    Bun(bun::BunLock),
     Cargo(cargo::CargoLock),
     Composer(composer::ComposerLock),
     Go(go::GoSum),
@@ -35,6 +37,7 @@ impl TryFrom<&db::Sbom> for Sbom {
 impl Sbom {
     pub fn new(strain: &str, data: String) -> Result<Sbom> {
         match strain {
+            bun::STRAIN => Ok(Sbom::Bun(bun::BunLock { data })),
             cargo::STRAIN => Ok(Sbom::Cargo(cargo::CargoLock { data })),
             composer::STRAIN => Ok(Sbom::Composer(composer::ComposerLock { data })),
             go::STRAIN => Ok(Sbom::Go(go::GoSum { data })),
@@ -48,6 +51,7 @@ impl Sbom {
 
     pub fn strain(&self) -> &'static str {
         match self {
+            Sbom::Bun(_) => bun::STRAIN,
             Sbom::Cargo(_) => cargo::STRAIN,
             Sbom::Composer(_) => composer::STRAIN,
             Sbom::Go(_) => go::STRAIN,
@@ -60,6 +64,7 @@ impl Sbom {
 
     pub fn data(&self) -> &str {
         match self {
+            Sbom::Bun(sbom) => &sbom.data,
             Sbom::Cargo(sbom) => &sbom.data,
             Sbom::Composer(sbom) => &sbom.data,
             Sbom::Go(sbom) => &sbom.data,
@@ -162,6 +167,7 @@ pub struct Ref {
 
 pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
     match filename {
+        Some("bun.lock") => Some(bun::STRAIN),
         Some("Cargo.lock") => Some(cargo::STRAIN),
         Some("composer.lock") => Some(composer::STRAIN),
         Some("go.sum") => Some(go::STRAIN),
