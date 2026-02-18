@@ -21,6 +21,8 @@ pub enum Error {
     #[error(transparent)]
     Json(#[from] serde_json::Error),
     #[error(transparent)]
+    Json5(#[from] serde_json5::Error),
+    #[error(transparent)]
     Xml(#[from] serde_xml_rs::Error),
     #[error(transparent)]
     Toml(#[from] toml::de::Error),

@@ -83,6 +83,10 @@ impl Sbom {
 
     pub fn to_packages(&self) -> Result<Vec<Package>> {
         match self {
+            Sbom::Bun(sbom) => {
+                let sbom = sbom.parse()?;
+                sbom.collect::<Result<Vec<_>>>()
+            }
             Sbom::Cargo(sbom) => {
                 let sbom = sbom.parse()?;
                 sbom.collect::<Result<Vec<_>>>()
@@ -149,7 +153,7 @@ impl<'a> HashedSbom<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Package {
     pub name: String,
     pub version: String,
