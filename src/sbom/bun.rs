@@ -41,7 +41,7 @@ impl Iterator for ParsedLock {
             let Some((pkgname, pkgver)) = id.rsplit_once('@') else {
                 continue;
             };
-            let unnamespaced = pkgname.split('/').last().unwrap_or(pkgname);
+            let unnamespaced = pkgname.split('/').next_back().unwrap_or(pkgname);
 
             // Extract the checksum in our format (if possible)
             let checksum = integrity
