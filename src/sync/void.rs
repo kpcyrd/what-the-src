@@ -56,9 +56,6 @@ pub async fn run(args: &args::SyncVoid) -> Result<()> {
                 return Err(Error::InvalidData);
             };
 
-            // mark all refs known for this package as "last_seen now"
-            db.bump_named_refs(vendor, &pkgname, version).await?;
-
             // check if package already imported
             if db.get_package(vendor, &pkgname, version).await?.is_some() {
                 debug!(

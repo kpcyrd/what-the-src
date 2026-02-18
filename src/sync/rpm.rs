@@ -106,9 +106,6 @@ pub async fn run(args: &args::SyncRpm) -> Result<()> {
         let package = pkg.name;
         let version = format!("{}-{}", pkg.version.ver, pkg.version.rel);
 
-        // mark all refs known for this package as "last_seen now"
-        db.bump_named_refs(vendor, &package, &version).await?;
-
         if db.get_package(vendor, &package, &version).await?.is_some() {
             debug!(
                 "Package is already imported: vendor={vendor:?} package={package:?} version={version:?}"

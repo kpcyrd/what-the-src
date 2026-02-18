@@ -54,9 +54,6 @@ pub async fn run(args: &args::SyncPacman) -> Result<()> {
         };
         let Some(tag) = chunker.next() else { continue };
 
-        // mark all refs known for this package as "last_seen now"
-        db.bump_named_refs(vendor, pkgbase, version).await?;
-
         // check if package already imported
         if db.get_package(vendor, pkgbase, version).await?.is_some() {
             debug!(

@@ -153,7 +153,6 @@ impl Client {
             "INSERT INTO refs (chksum, vendor, package, version, filename, last_seen, protocol, host)
             VALUES ($1, $2, $3, $4, $5, now(), $6, $7)
             ON CONFLICT (chksum, vendor, package, version) DO UPDATE SET
-            last_seen = EXCLUDED.last_seen,
             filename = COALESCE(EXCLUDED.filename, refs.filename),
             protocol = COALESCE(EXCLUDED.protocol, refs.protocol),
             host = COALESCE(EXCLUDED.host, refs.host)",
@@ -228,22 +227,6 @@ impl Client {
         .fetch_optional(&self.pool)
         .await?;
         Ok(result)
-    }
-
-    pub async fn bump_named_refs(&self, vendor: &str, package: &str, version: &str) -> Result<()> {
-        let _result = sqlx::query(
-            "UPDATE refs
-            SET last_seen = now()
-            WHERE vendor = $1
-            AND package = $2
-            AND version = $3",
-        )
-        .bind(vendor)
-        .bind(package)
-        .bind(version)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
     }
 
     pub async fn get_all_refs_for(&self, chksum: &str) -> Result<Vec<RefView>> {
