@@ -5,6 +5,7 @@ pub mod go;
 pub mod npm;
 pub mod pnpm;
 pub mod poetry;
+pub mod pylock;
 pub mod uv;
 pub mod yarn;
 
@@ -24,6 +25,7 @@ pub enum Sbom {
     Npm(npm::PackageLockJson),
     Pnpm(pnpm::PnpmLock),
     Poetry(poetry::PoetryLock),
+    Pylock(pylock::PylockToml),
     Uv(uv::UvLock),
     Yarn(yarn::YarnLock),
 }
@@ -46,6 +48,7 @@ impl Sbom {
             npm::STRAIN => Ok(Sbom::Npm(npm::PackageLockJson { data })),
             pnpm::STRAIN => Ok(Sbom::Pnpm(pnpm::PnpmLock { data })),
             poetry::STRAIN => Ok(Sbom::Poetry(poetry::PoetryLock { data })),
+            pylock::STRAIN => Ok(Sbom::Pylock(pylock::PylockToml { data })),
             uv::STRAIN => Ok(Sbom::Uv(uv::UvLock { data })),
             yarn::STRAIN => Ok(Sbom::Yarn(yarn::YarnLock { data })),
             _ => Err(Error::UnknownSbomStrain(strain.to_string())),
@@ -61,6 +64,7 @@ impl Sbom {
             Sbom::Npm(_) => npm::STRAIN,
             Sbom::Pnpm(_) => pnpm::STRAIN,
             Sbom::Poetry(_) => poetry::STRAIN,
+            Sbom::Pylock(_) => pylock::STRAIN,
             Sbom::Uv(_) => uv::STRAIN,
             Sbom::Yarn(_) => yarn::STRAIN,
         }
@@ -75,6 +79,7 @@ impl Sbom {
             Sbom::Npm(sbom) => &sbom.data,
             Sbom::Pnpm(sbom) => &sbom.data,
             Sbom::Poetry(sbom) => &sbom.data,
+            Sbom::Pylock(sbom) => &sbom.data,
             Sbom::Uv(sbom) => &sbom.data,
             Sbom::Yarn(sbom) => &sbom.data,
         }
@@ -183,6 +188,7 @@ pub fn detect_from_filename(filename: Option<&str>) -> Option<&'static str> {
         Some("package-lock.json") => Some(npm::STRAIN),
         Some("pnpm-lock.yaml") => Some(pnpm::STRAIN),
         Some("poetry.lock") => Some(poetry::STRAIN),
+        Some("pylock.toml") => Some(pylock::STRAIN),
         Some("uv.lock") => Some(uv::STRAIN),
         Some("yarn.lock") => Some(yarn::STRAIN),
         _ => None,
