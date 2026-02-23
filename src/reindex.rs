@@ -59,6 +59,14 @@ pub async fn run_url(args: &args::ReindexUrl) -> Result<()> {
             continue;
         };
 
+        // If enabled, check if the task already exists
+        if args.skip_scheduled
+            && let Some(existing) = db.get_task(&task.key).await?
+        {
+            debug!("Skipping already scheduled task: {existing:?}");
+            continue;
+        }
+
         info!("Inserting task: {task:?}");
         db.insert_task(&task).await?;
         scheduled += 1;

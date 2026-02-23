@@ -345,6 +345,9 @@ pub struct ReindexUrl {
     /// Skip artifacts that are already archived
     #[arg(long)]
     pub skip_archived: bool,
+    /// Explicitly check if the task is already scheduled, don't count it against --limit
+    #[arg(long)]
+    pub skip_scheduled: bool,
 }
 
 /// Reindex all known sboms

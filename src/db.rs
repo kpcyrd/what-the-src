@@ -310,6 +310,19 @@ impl Client {
         Ok(())
     }
 
+    pub async fn get_task(&self, key: &str) -> Result<Option<Task>> {
+        let result = sqlx::query_as(
+            "SELECT *
+                FROM tasks
+                WHERE key = $1
+                ",
+        )
+        .bind(key)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(result)
+    }
+
     pub async fn get_random_task(&self) -> Result<Option<Task>> {
         let result = sqlx::query_as(
             "SELECT *
