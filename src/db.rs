@@ -640,18 +640,6 @@ impl Client {
         Ok(result)
     }
 
-    pub async fn stats_refs_hosts(&self) -> Result<Vec<(String, i64)>> {
-        self.get_stats(
-            "SELECT host, COUNT(DISTINCT filename) AS num
-            FROM refs
-            WHERE host IS NOT NULL
-                AND filename IS NOT NULL
-            GROUP BY host",
-            None,
-        )
-        .await
-    }
-
     pub async fn stats_aliases_with_reason(&self) -> Result<Vec<(String, i64)>> {
         self.get_stats(
             "select '%', floor(100.0*(select count(*) from aliases where reason is not null)/(select count(*) from aliases))::bigint as percent",
