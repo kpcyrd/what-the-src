@@ -601,7 +601,7 @@ mod tests {
         while let Some(entry) = entries.next().await {
             let mut entry = entry.unwrap();
 
-            if *entry.path_bytes() == *b"pax_global_header" {
+            if *entry.path_bytes().unwrap() == *b"pax_global_header" {
                 comment = pax_git_comment(entry.pax_extensions().await.unwrap());
             }
         }
